@@ -9,8 +9,8 @@
 export function calculateEconomicDispatch(simRecords, options = {}) {
   const {
     tariffRatePerKwh = 7.5,   // ₹7.5 / kWh Time-of-Use rate
-    cleaningCost = 1500.0,    // Fixed labor crew charge (₹)
-    waterCost = 300.0,        // Municipal water cost (₹)
+    cleaningCost = 350.0,     // Fixed labor crew charge for 15-panel array (₹)
+    waterCost = 50.0,         // Municipal water cost (₹)
     rainOverrideProb = 40.0,   // Rain probability threshold (%)
     rainOverrideMm = 3.0,     // Rain accumulation threshold (mm)
   } = options
@@ -51,16 +51,16 @@ export function calculateEconomicDispatch(simRecords, options = {}) {
     decisionBadge = '🌧️ FREE NATURAL WASH'
     decisionClass = 'info'
     explanation = `High-probability precipitation (${Math.round(maxRainProb)}% chance) forecast within 72 hours. Manual wash order suppressed to save ₹${totalCleaningExpense.toFixed(2)} and ~450 Liters of water.`
-  } else if (weeklyNetProfit > 0 && dailyRevenueLost > 100) {
+  } else if (weeklyRevenueLost >= totalCleaningExpense && weeklyRevenueLost > 0) {
     decision = 'DISPATCH'
     decisionBadge = '🚨 DISPATCH CLEANING'
-    decisionClass = 'warning'
-    explanation = `Cleaning is economically viable. Accumulated weekly yield loss (₹${weeklyRevenueLost.toFixed(2)}) exceeds cleaning expense (₹${totalCleaningExpense.toFixed(2)}). Expected Net ROI: +₹${weeklyNetProfit.toFixed(2)} / week.`
+    decisionClass = 'critical'
+    explanation = `Cleaning is economically viable! Accumulated weekly yield loss (₹${weeklyRevenueLost.toFixed(2)}) has reached/exceeded cleaning expense (₹${totalCleaningExpense.toFixed(2)}). Immediate wash recovers +₹${Math.max(0, weeklyNetProfit).toFixed(2)} / week net ROI.`
   } else {
     decision = 'STANDBY'
     decisionBadge = 'BELOW COST THRESHOLD'
     decisionClass = 'healthy'
-    explanation = `Daily revenue loss (₹${dailyRevenueLost.toFixed(2)}/day) is below the breakeven threshold for a ₹${totalCleaningExpense.toFixed(2)} cleaning service.`
+    explanation = `Weekly revenue loss (₹${weeklyRevenueLost.toFixed(2)}/wk) is below the breakeven threshold for a ₹${totalCleaningExpense.toFixed(2)} cleaning service.`
   }
 
   return {

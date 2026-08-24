@@ -30,7 +30,7 @@ export default function App() {
   const [hasDiodeFault, setHasDiodeFault] = useState(false)
   const [hasRainEvent, setHasRainEvent] = useState(false)
   const [tariffRate, setTariffRate] = useState(7.5)
-  const [cleaningCost, setCleaningCost] = useState(1500.0)
+  const [cleaningCost, setCleaningCost] = useState(350.0)
 
   const [activePreset, setActivePreset] = useState('soiling')
   const [viewMode, setViewMode] = useState('split') // 'split' | '3d' | 'analytics'
@@ -189,7 +189,7 @@ export default function App() {
     const dispatch = calculateEconomicDispatch(processedRecords, {
       tariffRatePerKwh: tariffRate,
       cleaningCost,
-      waterCost: 300.0,
+      waterCost: 50.0,
     })
 
     return {
@@ -269,6 +269,7 @@ export default function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenSdg={() => setIsSdgOpen(true)}
+        economicDispatch={economicDispatch}
       />
 
       {/* Main Workspace Layout */}
@@ -301,10 +302,34 @@ export default function App() {
           setIsOpen={setIsDrawerOpen}
           diagnosis={diagnosis}
           isCleaning={isCleaning}
+          economicDispatch={economicDispatch}
         />
 
         {/* Central Operations Stage */}
-        <main className={`operations-stage ${!isDrawerOpen ? 'drawer-closed' : ''}`}>
+        <main className={`operations-stage ${!isDrawerOpen ? 'drawer-closed' : ''} ${economicDispatch.decision === 'DISPATCH' ? 'system-dispatch-active' : ''}`}>
+          {/* Unmissable High-Priority Dispatch Banner */}
+          {economicDispatch.decision === 'DISPATCH' && (
+            <div className="dispatch-alert-banner">
+              <div className="dispatch-banner-left">
+                <span className="dispatch-siren-pulse">🚨</span>
+                <div className="dispatch-banner-text">
+                  <div className="dispatch-banner-heading">
+                    CRITICAL ECONOMIC DISPATCH: WASH ORDER TRIGGERED
+                  </div>
+                  <div className="dispatch-banner-sub">
+                    Weekly dust loss (<strong>₹{economicDispatch.weeklyRevenueLost.toFixed(2)}</strong>) has exceeded cleaning cost (<strong>₹{economicDispatch.totalCleaningExpense.toFixed(2)}</strong>). Immediate wash recommended (ROI: <strong>+₹{Math.max(0, economicDispatch.weeklyNetProfit).toFixed(2)}/wk</strong>).
+                  </div>
+                </div>
+              </div>
+              <button 
+                className="dispatch-banner-action-btn"
+                onClick={handleWashPanels}
+                disabled={isCleaning}
+              >
+                {isCleaning ? '⏳ Washing Array...' : '🧼 Execute Panel Wash'}
+              </button>
+            </div>
+          )}
           {/* Top KPI Summary Banner */}
           <KpiMetrics
             soilingIndex={soilingIndex}
@@ -396,6 +421,8 @@ export default function App() {
                   simRecords={simRecords}
                   selectedHour={selectedHour}
                   setSelectedHour={setSelectedHour}
+                  diagnosis={diagnosis}
+                  soilingIndex={soilingIndex}
                 />
                 <StringHeatmap
                   soiledPanels={soiledPanels}

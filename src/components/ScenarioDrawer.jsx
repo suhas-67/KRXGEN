@@ -18,7 +18,9 @@ export default function ScenarioDrawer({
   setIsOpen,
   diagnosis,
   isCleaning,
+  economicDispatch,
 }) {
+  const isDispatchAlert = economicDispatch?.decision === 'DISPATCH'
   const fv = diagnosis?.featureVector || { vRatio: 1.0, iRatio: 1.0, pRatio: 1.0, pResidualKw: 0.0 }
   const [showAiDetails, setShowAiDetails] = React.useState(true)
 
@@ -82,14 +84,14 @@ export default function ScenarioDrawer({
           {/* Primary Action: Wash Panels */}
           <div className="drawer-section">
             <button 
-              className={`wash-panels-btn ${isCleaning ? 'cleaning' : ''}`} 
+              className={`wash-panels-btn ${isCleaning ? 'cleaning' : ''} ${isDispatchAlert ? 'dispatch-highlight-blink' : ''}`} 
               onClick={onWashPanels}
               disabled={isCleaning || soilingLossPct === 0}
             >
-              <span className="wash-btn-icon">{isCleaning ? '⏳' : '🧼'}</span>
+              <span className="wash-btn-icon">{isCleaning ? '⏳' : isDispatchAlert ? '🚨' : '🧼'}</span>
               <div>
-                <strong>{isCleaning ? 'Washing Panels...' : 'Wash Panels (Simulate Cleaning)'}</strong>
-                <small>{isCleaning ? 'Applying high-pressure wash' : 'Resets SI to 1.0 & restores full generation'}</small>
+                <strong>{isCleaning ? 'Washing Panels...' : isDispatchAlert ? 'Wash Required (Loss > Cost)' : 'Wash Panels (Simulate Cleaning)'}</strong>
+                <small>{isCleaning ? 'Applying high-pressure wash' : isDispatchAlert ? `Recover +₹${Math.max(0, economicDispatch?.weeklyNetProfit || 0).toFixed(0)}/wk Net ROI` : 'Resets SI to 1.0 & restores full generation'}</small>
               </div>
             </button>
           </div>
@@ -223,9 +225,9 @@ export default function ScenarioDrawer({
               <label>Cleaning Service Fee (₹):</label>
               <input
                 type="number"
-                step="100"
-                min="500"
-                max="10000"
+                step="50"
+                min="100"
+                max="3000"
                 value={cleaningCost}
                 onChange={(e) => setCleaningCost(Number(e.target.value))}
                 className="num-input"

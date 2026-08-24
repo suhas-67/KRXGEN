@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 
-export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour }) {
+export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour, diagnosis, soilingIndex }) {
   const [metricTab, setMetricTab] = useState('power') // 'power' | 'voltage' | 'current' | 'weather'
   const [hoveredIndex, setHoveredIndex] = useState(null)
 
@@ -23,13 +23,19 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
     const series = simRecords.map((r, i) => {
       let act = 0
       let mod = 0
+      let piml = null
 
       if (metricTab === 'power') {
         act = r.p_actual_kw ?? 0
         mod = r.p_modeled_kw ?? 0
+        
+        // AI/ML Model Prediction: Correcting the naive physics model
+        const diodeDerate = (diagnosis?.status === 'BYPASS_DIODE_FAULT') ? 0.667 : 1.0;
+        piml = mod * (soilingIndex || 1.0) * diodeDerate;
+        
         unit = 'kW'
-        labelActual = 'Actual Power (Pac)'
-        labelModeled = 'Theoretical Baseline (Pmod)'
+        labelActual = 'Actual Measured Output (Pac)'
+        labelModeled = 'Naive Physics Baseline (Theoretical)'
       } else if (metricTab === 'voltage') {
         act = r.v_actual ?? 0
         mod = r.v_modeled ?? 0
@@ -58,12 +64,14 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
 
       if (act > maxVal) maxVal = act
       if (mod > maxVal) maxVal = mod
+      if (piml !== null && piml > maxVal) maxVal = piml
 
       return {
         hour: r.hour ?? i,
         timeStr: `${r.hour ?? i}:00`,
         actual: act,
         modeled: mod,
+        piml: piml,
         record: r,
       }
     })
@@ -73,7 +81,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
     if (maxVal === 0) maxVal = 1
 
     return { series, maxVal, unit, labelActual, labelModeled }
-  }, [simRecords, metricTab])
+  }, [simRecords, metricTab, diagnosis, soilingIndex])
 
   // Coordinate mapping functions
   const getX = (index) => padding.left + (index / Math.max(1, chartData.series.length - 1)) * chartW
@@ -106,6 +114,15 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
       return i === 0 ? `M ${x} ${y}` : `${path} L ${x} ${y}`
     }, '')
   }, [chartData])
+
+  const pimlPath = useMemo(() => {
+    if (!chartData.series.length || metricTab !== 'power') return ''
+    return chartData.series.reduce((path, pt, i) => {
+      const x = getX(i)
+      const y = getY(pt.piml)
+      return i === 0 ? `M ${x} ${y}` : `${path} L ${x} ${y}`
+    }, '')
+  }, [chartData, metricTab])
 
   const activeHover = hoveredIndex !== null ? chartData.series[hoveredIndex] : null
 
@@ -260,6 +277,18 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             strokeLinecap="round"
           />
 
+          {/* AI ML Corrected Prediction (PIML) */}
+          {metricTab === 'power' && pimlPath && (
+            <path
+              d={pimlPath}
+              fill="none"
+              stroke="#d946ef"
+              strokeWidth="2.5"
+              strokeDasharray="5 3"
+              strokeLinecap="round"
+            />
+          )}
+
           {/* Interactive Mouse Hover Overlay Columns */}
           {chartData.series.map((pt, i) => {
             const x = getX(i)
@@ -310,6 +339,17 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
                 stroke="#fff"
                 strokeWidth="2"
               />
+              {/* Point on PIML Line */}
+              {metricTab === 'power' && activeHover.piml !== null && (
+                <circle
+                  cx={getX(hoveredIndex)}
+                  cy={getY(activeHover.piml)}
+                  r="5"
+                  fill="#d946ef"
+                  stroke="#fff"
+                  strokeWidth="2"
+                />
+              )}
             </g>
           )}
         </svg>
@@ -335,6 +375,12 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
               <span>● {chartData.labelActual}:</span>
               <strong>{activeHover.actual.toFixed(2)} {chartData.unit}</strong>
             </div>
+            {metricTab === 'power' && activeHover.piml !== null && (
+              <div className="tooltip-row" style={{ color: '#d946ef' }}>
+                <span>● AI ML Corrected Prediction:</span>
+                <strong>{activeHover.piml.toFixed(2)} {chartData.unit}</strong>
+              </div>
+            )}
             {activeHover.modeled > 0.05 && (
               <div className="tooltip-delta">
                 Yield Gap: <span className="delta-neg">-{Math.max(0, Math.round((1 - activeHover.actual / activeHover.modeled) * 100))}%</span>
@@ -350,6 +396,12 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
           <span className="legend-line solid-cyan"></span>
           <span>Actual Telemetry Output (Measured)</span>
         </div>
+        {metricTab === 'power' && (
+          <div className="legend-item">
+            <span className="legend-line" style={{ borderBottom: '2.5px dashed #d946ef', width: '16px', display: 'inline-block' }}></span>
+            <span style={{ color: '#d946ef', fontWeight: 'bold' }}>AI ML Corrected Prediction (PIML)</span>
+          </div>
+        )}
         <div className="legend-item">
           <span className="legend-line dashed-emerald"></span>
           <span>Physics Clean Baseline (1-Diode pvlib Model)</span>

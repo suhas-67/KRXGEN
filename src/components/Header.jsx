@@ -6,9 +6,12 @@ export default function Header({
   viewMode,
   setViewMode,
   onOpenSdg,
+  economicDispatch,
 }) {
+  const isDispatchAlert = economicDispatch?.decision === 'DISPATCH'
+
   return (
-    <header className="heliosense-header">
+    <header className={`heliosense-header ${isDispatchAlert ? 'header-dispatch-blink' : ''}`}>
       <div className="header-left">
         <div className="brand-badge">
           <span className="brand-icon">☀️</span>
@@ -17,6 +20,11 @@ export default function Header({
               <h1 className="brand-title">HELIOSENSE</h1>
               <span className="badge-chip zero-capex">₹0 CAPEX</span>
               <span className="badge-chip ai-virtual">PIML VIRTUAL SENSOR</span>
+              {isDispatchAlert && (
+                <span className="badge-chip dispatch-alert-chip">
+                  🚨 WASH DISPATCH ACTIVE
+                </span>
+              )}
             </div>
             <p className="brand-subtitle">
               Physics-Informed Solar PV Soiling & Fault Diagnostic Platform • <span className="team-highlight">Team LOCALHOST</span>
@@ -26,6 +34,14 @@ export default function Header({
       </div>
 
       <div className="header-right">
+        {/* Live Dispatch Pill if active */}
+        {isDispatchAlert && (
+          <div className="header-dispatch-pill">
+            <span className="pulse-dot-red"></span>
+            <strong>DISPATCH CLEANING: LOSS &gt; COST</strong>
+          </div>
+        )}
+
         {/* Live Weather Status Pill */}
         <div className="weather-status-pill">
           <span className={`live-dot ${isLiveWeather ? 'live' : 'fallback'}`}></span>

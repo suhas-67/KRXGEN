@@ -82,15 +82,21 @@ export default function KpiMetrics({
       </div>
 
       {/* Card 4: Opportunity-Aware Economic Dispatch */}
-      <div className={`kpi-card ${economicDispatch.decisionClass === 'warning' ? 'amber-glow' : economicDispatch.decisionClass === 'info' ? 'blue-glow' : 'emerald-glow'}`}>
+      <div className={`kpi-card ${economicDispatch.decision === 'DISPATCH' ? 'dispatch-blinking-card red-glow' : economicDispatch.decisionClass === 'warning' ? 'amber-glow' : economicDispatch.decisionClass === 'info' ? 'blue-glow' : 'emerald-glow'}`}>
         <div className="kpi-top">
           <span className="kpi-label">ECONOMIC DISPATCH (72H RAIN AWARE)</span>
-          <span className={`kpi-badge ${economicDispatch.decisionClass}`}>
+          <span className={`kpi-badge ${economicDispatch.decision === 'DISPATCH' ? 'red blink-badge' : economicDispatch.decisionClass}`}>
             {economicDispatch.decisionBadge}
           </span>
         </div>
         <div className="kpi-dispatch-title">
-          {economicDispatch.isRainComing ? '🌧️ Rain Forecast Suppressing Wash' : economicDispatch.weeklyNetProfit > 0 ? `💰 Wash ROI: +₹${economicDispatch.weeklyNetProfit.toFixed(2)}/wk` : '✅ Generation Within Cost Margin'}
+          {economicDispatch.isRainComing 
+            ? '🌧️ Rain Forecast Suppressing Wash' 
+            : economicDispatch.decision === 'DISPATCH' 
+            ? `🚨 DISPATCH ORDER: Net ROI +₹${Math.max(0, economicDispatch.weeklyNetProfit).toFixed(2)}/wk`
+            : economicDispatch.weeklyNetProfit > 0 
+            ? `💰 Wash ROI: +₹${economicDispatch.weeklyNetProfit.toFixed(2)}/wk` 
+            : '✅ Generation Within Cost Margin'}
         </div>
         <div className="kpi-dispatch-explanation">
           {economicDispatch.explanation}
