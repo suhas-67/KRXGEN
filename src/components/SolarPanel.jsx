@@ -4,6 +4,8 @@ import {
   useRef
 } from 'react'
 import * as THREE from 'three'
+import { useFrame } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 
 
 /* =========================================================
@@ -515,6 +517,7 @@ function SolarPanel({
   isFaulty = false,
   isSelected = false,
   panelId = null,
+  thermalState = null,
   onClick = null
 }) {
 
@@ -526,6 +529,14 @@ function SolarPanel({
 
   const cellWidth = 0.36
   const cellHeight = 0.34
+  
+  const thermalOverlay = useRef()
+  
+  useFrame((state) => {
+    if (thermalOverlay.current) {
+      thermalOverlay.current.material.opacity = 0.5 + Math.sin(state.clock.elapsedTime * 6) * 0.4
+    }
+  })
 
   const indicatorIntensity = THREE.MathUtils.lerp(
     1.8,
@@ -567,8 +578,35 @@ function SolarPanel({
         if (onClick) onClick(panelId)
       }}
     >
+      {/* Thermal Hotspot HTML Badge */}
+      {thermalState?.isCriticalHotspot && (
+        <Html position={[0, panelHeight / 2 + 0.3, 0.2]} center className="html-badge-container">
+          <div className="thermal-badge">
+            <span className="thermal-icon">🚨</span>
+            <div className="thermal-content">
+              <strong>Thermal Hotspot Alert</strong>
+              <span>Shaded Cell Junction &gt; {thermalState.tHotspot}°C</span>
+            </div>
+          </div>
+        </Html>
+      )}
+
+      {/* Pulsing Thermal Overlay (Yellow to Crimson) */}
+      {thermalState?.isCriticalHotspot && (
+        <mesh ref={thermalOverlay} position={[0, 0, 0.08]}>
+          <planeGeometry args={[panelWidth, panelHeight]} />
+          <meshBasicMaterial 
+            color="#ff1a1a" 
+            transparent 
+            opacity={0.6}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+
       {/* Visual Fault / Selection Glowing Trim */}
-      {isFaulty && (
+      {isFaulty && !thermalState?.isCriticalHotspot && (
         <mesh position={[0, 0, 0.06]}>
           <planeGeometry args={[panelWidth + 0.15, panelHeight + 0.15]} />
           <meshBasicMaterial

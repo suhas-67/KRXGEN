@@ -58,18 +58,29 @@ export function calculateEconomicDispatch(simRecords, options = {}) {
     explanation = `Cleaning is economically viable! Accumulated weekly yield loss (₹${weeklyRevenueLost.toFixed(2)}) has reached/exceeded cleaning expense (₹${totalCleaningExpense.toFixed(2)}). Immediate wash recovers +₹${Math.max(0, weeklyNetProfit).toFixed(2)} / week net ROI.`
   } else {
     decision = 'STANDBY'
-    decisionBadge = 'BELOW COST THRESHOLD'
     decisionClass = 'healthy'
     explanation = `Weekly revenue loss (₹${weeklyRevenueLost.toFixed(2)}/wk) is below the breakeven threshold for a ₹${totalCleaningExpense.toFixed(2)} cleaning service.`
   }
 
+  decisionBadge = decision === 'DISPATCH' 
+    ? `Wash ROI: +₹${weeklyNetProfit.toFixed(0)}/wk`
+    : isRainComing
+      ? '🌧️ Rain Forecast Suppressing Wash'
+      : 'BELOW COST THRESHOLD'
+
+  // Scope-2 Real-Time Carbon Ledger & Verifiable ESG Audit Trail
+  // Grid emission factor for India (approx 0.72 kg CO2e / kWh)
+  const gridEmissionFactor = 0.72;
+  const dailyCarbonDebtKg = dailyEnergyLossKwh * gridEmissionFactor;
+
   return {
     dailyEnergyLossKwh: Math.round(dailyEnergyLossKwh * 10) / 10,
-    dailyRevenueLost: Math.round(dailyRevenueLost * 100) / 100,
-    weeklyRevenueLost: Math.round(weeklyRevenueLost * 100) / 100,
-    monthlyRevenueLost: Math.round(monthlyRevenueLost * 100) / 100,
+    dailyRevenueLost: Math.round(dailyRevenueLost),
+    weeklyRevenueLost: Math.round(weeklyRevenueLost),
+    monthlyRevenueLost: Math.round(monthlyRevenueLost),
     totalCleaningExpense,
-    weeklyNetProfit: Math.round(weeklyNetProfit * 100) / 100,
+    weeklyNetProfit: Math.round(weeklyNetProfit),
+    dailyCarbonDebtKg: Math.round(dailyCarbonDebtKg * 10) / 10,
     maxRainProb: Math.round(maxRainProb),
     decision,
     decisionBadge,

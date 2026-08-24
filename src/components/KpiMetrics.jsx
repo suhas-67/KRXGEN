@@ -6,6 +6,7 @@ export default function KpiMetrics({
   economicDispatch,
   soilingLossPct,
   currentHourData,
+  onOpenDispatchModal,
 }) {
   // Format SI color
   let siColorClass = 'emerald'
@@ -56,6 +57,34 @@ export default function KpiMetrics({
           </span>
           <span className="kpi-footnote">₹{economicDispatch.weeklyRevenueLost.toFixed(1)}/week loss</span>
         </div>
+        {/* Scope-2 Real-Time Carbon Ledger & Verifiable ESG Audit Trail */}
+        <div className="esg-ledger-row">
+          <div className="esg-badge">
+            <span className="esg-icon">🍃</span>
+            <span>Avoidable Carbon Deficit: <strong>{economicDispatch.dailyCarbonDebtKg.toFixed(1)} kg CO₂e/day</strong></span>
+          </div>
+          <button 
+            className="esg-download-btn"
+            onClick={() => {
+              const data = JSON.stringify({
+                asset: "HelioSense Test Array",
+                date: new Date().toISOString(),
+                dailyCarbonDebtKg: economicDispatch.dailyCarbonDebtKg,
+                weeklyProjectedDebtKg: economicDispatch.dailyCarbonDebtKg * 7,
+                emissionFactor: 0.72,
+                status: "UNVERIFIED_LOSS"
+              }, null, 2);
+              const blob = new Blob([data], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "Scope2-ESG-Audit-Report.json";
+              a.click();
+            }}
+          >
+            📥 Download ESG Audit
+          </button>
+        </div>
       </div>
 
       {/* Card 3: PIML Electrical Diagnostic Status */}
@@ -101,6 +130,15 @@ export default function KpiMetrics({
         <div className="kpi-dispatch-explanation">
           {economicDispatch.explanation}
         </div>
+        {/* Automated WhatsApp / Telegram Maintenance Work-Order Dispatch */}
+        {economicDispatch.decision === 'DISPATCH' && (
+          <button 
+            className="dispatch-work-order-btn"
+            onClick={onOpenDispatchModal}
+          >
+            📱 Dispatch Work Order
+          </button>
+        )}
       </div>
     </section>
   )

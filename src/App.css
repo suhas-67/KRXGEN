@@ -1610,3 +1610,230 @@
     align-items: flex-start;
   }
 }
+
+/* =========================================================
+   THERMAL HOTSPOT 3D BADGE
+   ========================================================= */
+.html-badge-container {
+  pointer-events: none;
+  z-index: 100;
+}
+
+.thermal-badge {
+  background: rgba(20, 0, 0, 0.85);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  backdrop-filter: blur(4px);
+  animation: thermalPulse 1.5s infinite alternate ease-in-out;
+}
+
+.thermal-icon {
+  font-size: 20px;
+}
+
+.thermal-content {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', sans-serif;
+}
+
+.thermal-content strong {
+  color: #f87171;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.thermal-content span {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fecaca;
+}
+
+@keyframes thermalPulse {
+  0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); border-color: #ef4444; }
+  100% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.8); border-color: #ff3333; transform: scale(1.02); }
+}
+
+/* =========================================================
+   WORK ORDER MODAL
+   ========================================================= */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.work-order-modal {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  padding: 24px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.work-order-modal h2 {
+  margin: 0 0 8px 0;
+  color: #f1f5f9;
+  font-size: 1.25rem;
+}
+
+.modal-subtitle {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 24px;
+  cursor: pointer;
+}
+.modal-close:hover { color: #f1f5f9; }
+
+.ticket-preview {
+  background: #1e293b;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.ticket-header {
+  background: #0f172a;
+  padding: 12px 16px;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.ticket-time {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.ticket-body {
+  padding: 16px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.ticket-body p {
+  margin: 0;
+}
+
+.ticket-alert {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  border-left: 3px solid #ef4444;
+  margin: 12px 0 !important;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.send-dispatch-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+.send-dispatch-btn:hover { background: #1d4ed8; }
+.send-dispatch-btn.sent {
+  background: #10b981;
+  cursor: default;
+}
+
+/* =========================================================
+   ESG CARBON LEDGER BADGE
+   ========================================================= */
+.esg-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.esg-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+.esg-download-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.esg-download-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+/* =========================================================
+   DISPATCH WORK ORDER BUTTON
+   ========================================================= */
+.dispatch-work-order-btn {
+  margin-top: 12px;
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  color: #60a5fa;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.dispatch-work-order-btn:hover {
+  background: #3b82f6;
+  color: white;
+}

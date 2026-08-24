@@ -11,6 +11,8 @@ import { calculatePhysicsBaseline } from './services/physicsEngine'
 import { SoilingKalmanFilter } from './services/kalmanFilter'
 import { diagnoseArrayHealth } from './services/faultFingerprint'
 import { calculateEconomicDispatch } from './services/economicDispatcher'
+import { calculateThermalRisk } from './services/thermalEstimator'
+import { generateSoilingForecast } from './services/soilingForecaster'
 
 // UI Components
 import Header from './components/Header'
@@ -19,6 +21,7 @@ import TelemetryChart from './components/TelemetryChart'
 import StringHeatmap from './components/StringHeatmap'
 import ScenarioDrawer from './components/ScenarioDrawer'
 import SdgModal from './components/SdgModal'
+import WorkOrderModal from './components/WorkOrderModal'
 
 import './App.css'
 
@@ -40,6 +43,8 @@ export default function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(true)
   const [washToast, setWashToast] = useState(null)
   const [isCleaning, setIsCleaning] = useState(false)
+  const [isWorkOrderOpen, setIsWorkOrderOpen] = useState(false)
+  const [isWaitingForTechReply, setIsWaitingForTechReply] = useState(false)
   
   // Toggle to include live weather rain forecast in dispatch decisions
   const [useLiveWeather, setUseLiveWeather] = useState(false)
@@ -68,6 +73,65 @@ export default function App() {
       isMounted = false
     }
   }, [])
+
+  /* =====================================================
+     TELEGRAM POLLING ENGINE
+     ===================================================== */
+  useEffect(() => {
+    let intervalId;
+    if (isWaitingForTechReply) {
+      const botToken = "8820953577:AAGOl8xF0tzaucTszeqOSVcjRtLHGdlQlXU"
+      const chatId = "8361047625"
+      let lastProcessedUpdateId = null;
+
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates`);
+          const data = await res.json();
+          if (data.ok && data.result.length > 0) {
+            if (lastProcessedUpdateId === null) {
+              // Ignore historical messages on first poll
+              lastProcessedUpdateId = data.result[data.result.length - 1].update_id;
+              return;
+            }
+
+            for (const update of data.result) {
+              if (update.update_id > lastProcessedUpdateId && update.message?.text) {
+                lastProcessedUpdateId = update.update_id;
+                const text = update.message.text.trim().toLowerCase();
+                
+                if (text === 'yes' || text.includes('yes')) {
+                  setIsWaitingForTechReply(false);
+                  setIsCleaning(true);
+                  setSoilingLossPct(0);
+                  setHasDiodeFault(false);
+                  setActivePreset('clean');
+                  setWashToast("✅ Technician accepted dispatch! Initiating autonomous wash sequence...");
+                  setTimeout(() => setWashToast(null), 5000);
+                  
+                  // Send confirmation back to Telegram
+                  fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      chat_id: chatId,
+                      text: "✅ Wash command received! Executing autonomous panel wash..."
+                    })
+                  });
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Telegram polling error", e);
+        }
+      }, 3000); // Poll every 3 seconds
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    }
+  }, [isWaitingForTechReply]);
 
   /* =====================================================
      3D SOLAR ARRAY PANEL LAYOUT (15 PANELS: 3x5 GRID)
@@ -103,14 +167,14 @@ export default function App() {
   /* =====================================================
      PHYSICS ENGINE & SIMULATION PIPELINE
      ===================================================== */
-  const { simRecords, currentHourData, soilingIndex, diagnosis, economicDispatch } = useMemo(() => {
+  const { simRecords, currentHourData, soilingIndex, diagnosis, economicDispatch, soilingForecast } = useMemo(() => {
     if (!weatherState.records || weatherState.records.length === 0) {
       return {
         simRecords: [],
         currentHourData: null,
         soilingIndex: 1.0,
         diagnosis: { status: 'HEALTHY', severity: 'healthy', title: 'System Initializing', message: 'Loading telemetry...', badge: 'STANDBY' },
-        economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '' },
+        economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '', dailyCarbonDebtKg: 0 },
       }
     }
 
@@ -204,6 +268,9 @@ export default function App() {
       cleaningCost,
       waterCost: 50.0,
     })
+    
+    // 6. Soiling Forecast
+    const forecast = generateSoilingForecast(computedSi, 48)
 
     return {
       simRecords: processedRecords,
@@ -211,6 +278,7 @@ export default function App() {
       soilingIndex: computedSi,
       diagnosis: diag,
       economicDispatch: dispatch,
+      soilingForecast: forecast
     }
   }, [weatherState, soilingLossPct, hasDiodeFault, hasRainEvent, tariffRate, cleaningCost, selectedHour])
 
@@ -272,6 +340,18 @@ export default function App() {
 
     requestAnimationFrame(animateCleaning);
   }, [soilingLossPct, economicDispatch, isCleaning]);
+
+  // 4. Compute Thermal Risk for the current hour
+  const thermalState = useMemo(() => {
+    if (!currentHourData) return null;
+    
+    // String 2 panels are at index 5-9. If bypass diode fault is active, they are faulted.
+    return calculateThermalRisk(
+      currentHourData.i_actual, 
+      currentHourData.temp_amb || 35.0, 
+      hasDiodeFault
+    );
+  }, [currentHourData, hasDiodeFault]);
 
   return (
     <div className="heliosense-app">
@@ -352,6 +432,7 @@ export default function App() {
             economicDispatch={economicDispatch}
             soilingLossPct={soilingLossPct}
             currentHourData={currentHourData}
+            onOpenDispatchModal={() => setIsWorkOrderOpen(true)}
           />
 
           {/* Dynamic View Mode Content */}
@@ -396,6 +477,7 @@ export default function App() {
                           isFaulty={isPanelFaulted}
                           isSelected={isSelected}
                           panelId={index}
+                          thermalState={isPanelFaulted ? thermalState : null}
                           onClick={(id) => setSelectedPanel(selectedPanel === id ? null : id)}
                         />
                       )
@@ -438,6 +520,7 @@ export default function App() {
                   setSelectedHour={setSelectedHour}
                   diagnosis={diagnosis}
                   soilingIndex={soilingIndex}
+                  soilingForecast={soilingForecast}
                 />
                 <StringHeatmap
                   soiledPanels={soiledPanels}
@@ -463,8 +546,26 @@ export default function App() {
         </div>
       )}
 
-      {/* UN SDGs Presentation Modal */}
+      {/* Waiting for Tech Toast Notification */}
+      {isWaitingForTechReply && !washToast && (
+        <div className="floating-toast" style={{ backgroundColor: '#2563eb', border: '1px solid #3b82f6', color: 'white' }}>
+          <span>⏳ Waiting for technician to reply "yes" on Telegram...</span>
+          <button onClick={() => setIsWaitingForTechReply(false)}>✕</button>
+        </div>
+      )}
+
+      {/* UN SDGs Presentation & Modals */}
       <SdgModal isOpen={isSdgOpen} onClose={() => setIsSdgOpen(false)} />
+      
+      <WorkOrderModal 
+        isOpen={isWorkOrderOpen}
+        onClose={() => setIsWorkOrderOpen(false)}
+        economicDispatch={economicDispatch}
+        diagnosis={diagnosis}
+        thermalState={thermalState}
+        soilingLossPct={soilingLossPct}
+        onDispatchSuccess={() => setIsWaitingForTechReply(true)}
+      />
     </div>
   )
 }

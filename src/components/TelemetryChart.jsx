@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 
-export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour, diagnosis, soilingIndex }) {
+export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour, diagnosis, soilingIndex, soilingForecast }) {
   const [metricTab, setMetricTab] = useState('power') // 'power' | 'voltage' | 'current' | 'weather'
   const [hoveredIndex, setHoveredIndex] = useState(null)
 
@@ -54,6 +54,12 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
         unit = 'kW'
         labelActual = 'PIML Residual Loss (ΔP)'
         labelModeled = 'Clean Baseline (Pmod)'
+      } else if (metricTab === 'soiling') {
+        act = r.soiling_index ?? 1.0;
+        mod = 1.0;
+        unit = 'SI';
+        labelActual = 'Soiling Index (Historical)';
+        labelModeled = 'Clean Baseline';
       } else {
         act = r.poa_global ?? r.ghi ?? 0
         mod = r.temp_cell ?? 25
@@ -124,6 +130,24 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
     }, '')
   }, [chartData, metricTab])
 
+  // Forecast path for Soiling Index
+  const forecastPath = useMemo(() => {
+    if (metricTab !== 'soiling' || !soilingForecast || !soilingForecast.length) return ''
+    
+    // We append the forecast to the end of the historical chart
+    // The width of the chart is X=chartW. We can scale the forecast over the same width 
+    // or just compress it. Let's make the forecast take up the right half.
+    // Actually, simple way: Just map the 48h forecast onto the same X axis as if it continues
+    return soilingForecast.reduce((path, pt, i) => {
+      // Map i from 0..48 to X coordinates stretching from current hour to the end of the chart width
+      const xStart = getX(chartData.series.length - 1);
+      const xEnd = chartW + padding.left;
+      const x = xStart + (i / 48) * (xEnd - xStart);
+      const y = getY(pt.forecast_si)
+      return i === 0 ? `M ${x} ${y}` : `${path} L ${x} ${y}`
+    }, '')
+  }, [chartData, metricTab, soilingForecast, getX, getY, chartW, padding.left])
+
   const activeHover = hoveredIndex !== null ? chartData.series[hoveredIndex] : null
 
   return (
@@ -165,6 +189,13 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             onClick={() => setMetricTab('weather')}
           >
             ☀️ Irradiance & Temp
+          </button>
+          <button
+            className={`chart-tab ${metricTab === 'soiling' ? 'active' : ''}`}
+            onClick={() => setMetricTab('soiling')}
+            style={{ color: metricTab === 'soiling' ? '#fb923c' : '' }}
+          >
+            🌬️ Soiling Forecast
           </button>
         </div>
       </div>
@@ -272,7 +303,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
           <path
             d={actualPath}
             fill="none"
-            stroke="#00c8ff"
+            stroke={metricTab === 'soiling' ? "#10b981" : "#00c8ff"}
             strokeWidth="3"
             strokeLinecap="round"
           />
@@ -287,6 +318,32 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
               strokeDasharray="5 3"
               strokeLinecap="round"
             />
+          )}
+
+          {/* 48H Soiling Forecast Trajectory */}
+          {metricTab === 'soiling' && forecastPath && (
+            <>
+              <path
+                d={forecastPath}
+                fill="none"
+                stroke="#fb923c"
+                strokeWidth="2.5"
+                strokeDasharray="4 4"
+                strokeLinecap="round"
+              />
+              <line 
+                x1={padding.left} 
+                y1={getY(0.92)} 
+                x2={padding.left + chartW} 
+                y2={getY(0.92)} 
+                stroke="#ef4444" 
+                strokeWidth="1.5" 
+                strokeDasharray="8 4" 
+              />
+              <text x={padding.left + chartW - 130} y={getY(0.92) - 8} fill="#ef4444" fontSize="10" fontFamily="monospace">
+                ECONOMIC BREAKEVEN THRESHOLD
+              </text>
+            </>
           )}
 
           {/* Interactive Mouse Hover Overlay Columns */}
