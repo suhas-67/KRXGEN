@@ -174,7 +174,7 @@ export default function App() {
         simRecords: [],
         currentHourData: null,
         soilingIndex: 1.0,
-        economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '', dailyCarbonDebtKg: 0 },
+        economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '', dailyCarbonDebtKg: 0, totalCleaningExpense: 250 },
         soilingForecast: []
       }
     }
@@ -431,7 +431,7 @@ export default function App() {
                     CRITICAL ECONOMIC DISPATCH: WASH ORDER TRIGGERED
                   </div>
                   <div className="dispatch-banner-sub">
-                    Weekly dust loss (<strong>₹{economicDispatch.weeklyRevenueLost.toFixed(2)}</strong>) has exceeded cleaning cost (<strong>₹{economicDispatch.totalCleaningExpense.toFixed(2)}</strong>). Immediate wash recommended (ROI: <strong>+₹{Math.max(0, economicDispatch.weeklyNetProfit).toFixed(2)}/wk</strong>).
+                    Weekly dust loss (<strong>₹{(economicDispatch.weeklyRevenueLost || 0).toFixed(2)}</strong>) has exceeded cleaning cost (<strong>₹{(economicDispatch.totalCleaningExpense || 250).toFixed(2)}</strong>). Immediate wash recommended (ROI: <strong>+₹{Math.max(0, economicDispatch.weeklyNetProfit || 0).toFixed(2)}/wk</strong>).
                   </div>
                 </div>
               </div>

@@ -21,7 +21,12 @@ export default function ScenarioDrawer({
   economicDispatch,
 }) {
   const isDispatchAlert = economicDispatch?.decision === 'DISPATCH'
-  const fv = diagnosis?.featureVector || { vRatio: 1.0, iRatio: 1.0, pRatio: 1.0, pResidualKw: 0.0 }
+  const fv = {
+    vRatio: typeof diagnosis?.featureVector?.vRatio === 'number' ? diagnosis.featureVector.vRatio : 1.0,
+    iRatio: typeof diagnosis?.featureVector?.iRatio === 'number' ? diagnosis.featureVector.iRatio : 1.0,
+    pRatio: typeof diagnosis?.featureVector?.pRatio === 'number' ? diagnosis.featureVector.pRatio : 1.0,
+    pResidualKw: typeof diagnosis?.featureVector?.pResidualKw === 'number' ? diagnosis.featureVector.pResidualKw : 0.0,
+  }
   const [showAiDetails, setShowAiDetails] = React.useState(true)
 
   return (
