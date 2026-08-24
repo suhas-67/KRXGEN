@@ -9,7 +9,7 @@
 export function calculateEconomicDispatch(simRecords, options = {}) {
   const {
     tariffRatePerKwh = 7.5,   // ₹7.5 / kWh Time-of-Use rate
-    cleaningCost = 350.0,     // Fixed labor crew charge for 15-panel array (₹)
+    cleaningCost = 200.0,     // Fixed labor crew charge for 15-panel array (₹)
     waterCost = 50.0,         // Municipal water cost (₹)
     rainOverrideProb = 40.0,   // Rain probability threshold (%)
     rainOverrideMm = 3.0,     // Rain accumulation threshold (mm)

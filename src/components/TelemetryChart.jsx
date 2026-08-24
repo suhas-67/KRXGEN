@@ -29,9 +29,9 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
         act = r.p_actual_kw ?? 0
         mod = r.p_modeled_kw ?? 0
         
-        // AI/ML Model Prediction: Correcting the naive physics model
-        const diodeDerate = (diagnosis?.status === 'BYPASS_DIODE_FAULT') ? 0.667 : 1.0;
-        piml = mod * (soilingIndex || 1.0) * diodeDerate;
+        // PIML Virtual Sensor: AI predicts the TRUE CLEAN output by correcting 
+        // the naive physics model's unmodeled thermal and angular (IAM) losses.
+        piml = r.p_piml_kw ?? (mod * 0.98); // Fallback to 2% drop if missing
         
         unit = 'kW'
         labelActual = 'Actual Measured Output (Pac)'
@@ -377,7 +377,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             </div>
             {metricTab === 'power' && activeHover.piml !== null && (
               <div className="tooltip-row" style={{ color: '#d946ef' }}>
-                <span>● AI ML Corrected Prediction:</span>
+                <span>● AI ML True Clean Baseline:</span>
                 <strong>{activeHover.piml.toFixed(2)} {chartData.unit}</strong>
               </div>
             )}
@@ -399,7 +399,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
         {metricTab === 'power' && (
           <div className="legend-item">
             <span className="legend-line" style={{ borderBottom: '2.5px dashed #d946ef', width: '16px', display: 'inline-block' }}></span>
-            <span style={{ color: '#d946ef', fontWeight: 'bold' }}>AI ML Corrected Prediction (PIML)</span>
+            <span style={{ color: '#d946ef', fontWeight: 'bold' }}>AI ML True Clean Baseline</span>
           </div>
         )}
         <div className="legend-item">

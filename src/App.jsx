@@ -30,7 +30,7 @@ export default function App() {
   const [hasDiodeFault, setHasDiodeFault] = useState(false)
   const [hasRainEvent, setHasRainEvent] = useState(false)
   const [tariffRate, setTariffRate] = useState(7.5)
-  const [cleaningCost, setCleaningCost] = useState(350.0)
+  const [cleaningCost, setCleaningCost] = useState(200.0)
 
   const [activePreset, setActivePreset] = useState('soiling')
   const [viewMode, setViewMode] = useState('split') // 'split' | '3d' | 'analytics'
@@ -126,11 +126,20 @@ export default function App() {
       const rainProb = hasRainEvent ? 85 : record.rain_prob
       const rainMm = hasRainEvent ? 6.5 : record.rain_mm
 
+      // 2a. PIML Corrected Clean Baseline:
+      // The naive physics model (record.p_modeled_kw) doesn't fully account for wind cooling or Incidence Angle Modifier (IAM) losses.
+      // The ML model corrects this to predict the TRUE clean theoretical output.
+      // We simulate naive physics overpredicting by ~3.5% at solar noon.
+      const hour = record.hour ?? 12;
+      const mlCorrectionFactor = 1.0 - (0.035 * Math.max(0, Math.sin(Math.PI * (hour - 6) / 12)));
+      const pPimlKw = record.p_modeled_kw * mlCorrectionFactor;
+      const iTrueClean = record.i_modeled * mlCorrectionFactor;
+
+      // 2b. Synthesize actual telemetry from the TRUE PIML CLEAN state (not naive physics)
       // Current derate due to dust
-      const iActual = record.i_modeled * soilingFactor
+      const iActual = iTrueClean * soilingFactor
 
       // Voltage derate: String 2 drops by 33.3% if bypass diode fault active
-      // Array has 3 strings, so overall string 2 voltage drop manifests on that string
       const voltageFactor = hasDiodeFault ? 0.667 : 1.0
       const vActual = record.v_modeled * voltageFactor
 
@@ -153,6 +162,7 @@ export default function App() {
         i_actual: Math.round(iActual * 100) / 100,
         v_actual: Math.round(vActual * 10) / 10,
         p_actual_kw: Math.round(pActualKw * 100) / 100,
+        p_piml_kw: Math.round(pPimlKw * 100) / 100,
         soiling_index: Math.round(stepSi * 1000) / 1000,
       }
     })
