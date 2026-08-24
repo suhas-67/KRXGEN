@@ -7,6 +7,8 @@ export default function Header({
   setViewMode,
   onOpenSdg,
   economicDispatch,
+  useLiveWeather,
+  setUseLiveWeather,
 }) {
   const isDispatchAlert = economicDispatch?.decision === 'DISPATCH'
 
@@ -34,6 +36,14 @@ export default function Header({
       </div>
 
       <div className="header-right">
+        {/* Toggle to Enable/Disable Live Weather Rain Override */}
+        <button 
+          className={`forecast-toggle-btn ${useLiveWeather ? 'active' : ''}`}
+          onClick={() => setUseLiveWeather(!useLiveWeather)}
+          title="Toggle 72h Rain Forecast Dispatch Suppression"
+        >
+          {useLiveWeather ? '🌧️ Rain Forecast: ON' : '☀️ Rain Forecast: OFF'}
+        </button>
         {/* Live Dispatch Pill if active */}
         {isDispatchAlert && (
           <div className="header-dispatch-pill">

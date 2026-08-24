@@ -40,6 +40,9 @@ export default function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(true)
   const [washToast, setWashToast] = useState(null)
   const [isCleaning, setIsCleaning] = useState(false)
+  
+  // Toggle to include live weather rain forecast in dispatch decisions
+  const [useLiveWeather, setUseLiveWeather] = useState(false)
 
   // Weather data container
   const [weatherState, setWeatherState] = useState({
@@ -122,10 +125,9 @@ export default function App() {
     let computedSi = 1.0
 
     const processedRecords = physicsBaseline.map((record) => {
-      // For demo purposes, we ignore live weather rain probability unless the user explicitly 
-      // toggles the Rain Override scenario, so they can test the Dispatch Alert reliably.
-      const rainProb = hasRainEvent ? 90 : 0;
-      const rainMm = hasRainEvent ? 6.5 : 0;
+      // Allow live weather rain probability to suppress wash if enabled
+      const rainProb = hasRainEvent ? 90 : (useLiveWeather ? record.rain_prob : 0);
+      const rainMm = hasRainEvent ? 6.5 : (useLiveWeather ? record.rain_mm : 0);
 
       // 2a. PIML Corrected Clean Baseline:
       // The naive physics model (record.p_modeled_kw) doesn't fully account for wind cooling or Incidence Angle Modifier (IAM) losses.
@@ -281,6 +283,8 @@ export default function App() {
         setViewMode={setViewMode}
         onOpenSdg={() => setIsSdgOpen(true)}
         economicDispatch={economicDispatch}
+        useLiveWeather={useLiveWeather}
+        setUseLiveWeather={setUseLiveWeather}
       />
 
       {/* Main Workspace Layout */}
