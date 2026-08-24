@@ -4,6 +4,9 @@ HelioSense: FastAPI Server & PIML Diagnostic REST API
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 
@@ -48,14 +51,7 @@ class PIMLDiagnosticResponse(BaseModel):
     description: str
 
 
-@app.get("/")
-def root():
-    return {
-        "system": "HelioSense PIML Virtual Sensor",
-        "status": "ONLINE",
-        "version": "2.0.0",
-        "endpoints": ["/api/diagnose/piml", "/api/telemetry", "/api/health"],
-    }
+
 
 
 @app.get("/api/health")
@@ -96,6 +92,22 @@ def get_live_telemetry(lat: float = 10.7905, lon: float = 78.7047):
         return sim_df.to_dict(orient="records")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Telemetry generation failed: {str(e)}")
+
+
+# Serve React Frontend from dist/ folder
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dist"))
+if os.path.isdir(frontend_dist):
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        path = os.path.join(frontend_dist, full_path)
+        if os.path.isfile(path):
+            return FileResponse(path)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
 
 
 if __name__ == "__main__":

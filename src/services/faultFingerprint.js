@@ -21,7 +21,7 @@ export async function diagnoseArrayHealth(actualMetrics, modeledMetrics, soiling
   }
 
   try {
-    const response = await fetch("https://krxgen.onrender.com/api/diagnose/piml", {
+    const response = await fetch("/api/diagnose/piml", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
