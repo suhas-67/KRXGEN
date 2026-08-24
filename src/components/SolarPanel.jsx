@@ -585,7 +585,7 @@ function SolarPanel({
             <span className="thermal-icon">🚨</span>
             <div className="thermal-content">
               <strong>Thermal Hotspot Alert</strong>
-              <span>Shaded Cell Junction &gt; {thermalState.tHotspot}°C</span>
+              <span>Shaded Cell Junction: {thermalState.tHotspot}°C</span>
             </div>
           </div>
         </Html>

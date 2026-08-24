@@ -6,7 +6,7 @@
 
 export function calculateThermalRisk(iString, tAmb, isFaulted) {
   // If no localized fault/shading is present, cells operate near nominal temperature
-  const tCellNominal = tAmb + 15.0; // Approximation of nominal cell operating temperature
+  const tCellNominal = tAmb + 15.0; // Approximation of nominal cell operating temperature (35°C - 50°C)
 
   if (!isFaulted || iString <= 0) {
     return {
@@ -23,27 +23,26 @@ export function calculateThermalRisk(iString, tAmb, isFaulted) {
   const vReverse = 15.0; // Typical reverse bias voltage across a shaded sub-string (Volts)
   const pDissipated = iString * vReverse; // Watts
 
-  // 2. Estimate Localized Hotspot Temperature
+  // 2. Estimate Localized Hotspot Temperature (strictly constrained to 80°C - 200°C)
   // T_hotspot = T_cell + (Thermal Resistance * P_dissipated)
   const thetaTh = 2.8; // Thermal resistance (°C/W) - how well the cell dissipates heat
-  let tHotspot = tCellNominal + (thetaTh * pDissipated);
+  let rawHotspot = tCellNominal + (thetaTh * pDissipated);
 
-  // 3. Assign a Thermal Risk Score (0 - 100%)
-  // Backsheet melting / delamination risk begins accelerating heavily after 85°C
-  const criticalTemp = 85.0;
-  const maxTemp = 130.0; // High probability of backsheet failure / fire
-  
-  let riskScore = 0;
-  if (tHotspot > 50) {
-    riskScore = ((tHotspot - 50) / (maxTemp - 50)) * 100;
-  }
-  riskScore = Math.max(0, Math.min(100, riskScore));
+  // Hotspot occurs strictly in the range of 80°C to 200°C
+  const minHotspotTemp = 80.0;
+  const maxHotspotTemp = 200.0;
+  const tHotspot = Math.max(minHotspotTemp, Math.min(maxHotspotTemp, rawHotspot));
 
-  const isCriticalHotspot = tHotspot > criticalTemp;
+  // 3. Assign a Thermal Risk Score (0 - 100%) mapped across the [80°C, 200°C] range
+  let riskScore = ((tHotspot - minHotspotTemp) / (maxHotspotTemp - minHotspotTemp)) * 100;
+  riskScore = Math.max(0, Math.min(100, Math.round(riskScore)));
+
+  // Critical hotspot alert triggers within the 80°C - 200°C range
+  const isCriticalHotspot = tHotspot >= minHotspotTemp;
 
   return {
     tHotspot: Math.round(tHotspot * 10) / 10,
-    riskScore: Math.round(riskScore),
+    riskScore,
     isCriticalHotspot,
     pDissipated: Math.round(pDissipated * 10) / 10
   };
