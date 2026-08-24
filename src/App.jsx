@@ -45,6 +45,7 @@ export default function App() {
   const [isCleaning, setIsCleaning] = useState(false)
   const [isWorkOrderOpen, setIsWorkOrderOpen] = useState(false)
   const [isWaitingForTechReply, setIsWaitingForTechReply] = useState(false)
+  const [diagnosis, setDiagnosis] = useState({ status: 'HEALTHY', severity: 'healthy', title: 'System Initializing', message: 'Loading telemetry...', badge: 'STANDBY' })
   
   // Toggle to include live weather rain forecast in dispatch decisions
   const [useLiveWeather, setUseLiveWeather] = useState(false)
@@ -167,14 +168,14 @@ export default function App() {
   /* =====================================================
      PHYSICS ENGINE & SIMULATION PIPELINE
      ===================================================== */
-  const { simRecords, currentHourData, soilingIndex, diagnosis, economicDispatch, soilingForecast } = useMemo(() => {
+  const { simRecords, currentHourData, soilingIndex, economicDispatch, soilingForecast } = useMemo(() => {
     if (!weatherState.records || weatherState.records.length === 0) {
       return {
         simRecords: [],
         currentHourData: null,
         soilingIndex: 1.0,
-        diagnosis: { status: 'HEALTHY', severity: 'healthy', title: 'System Initializing', message: 'Loading telemetry...', badge: 'STANDBY' },
         economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '', dailyCarbonDebtKg: 0 },
+        soilingForecast: []
       }
     }
 
@@ -242,45 +243,63 @@ export default function App() {
     // 3. Find representative midday hour or user-selected hour
     const currHour = processedRecords.find((r) => r.hour === selectedHour) || processedRecords[12] || processedRecords[0]
 
-    // 4. Run Fault Fingerprinting Matrix & PIML Inference
-    const diag = diagnoseArrayHealth(
-      {
-        vActual: currHour.v_actual,
-        iActual: currHour.i_actual,
-        pActual: currHour.p_actual_kw,
-        hasDiodeFault,
-      },
-      {
-        vModeled: currHour.v_modeled,
-        iModeled: currHour.i_modeled,
-        pModeled: currHour.p_modeled_kw,
-      },
-      computedSi,
-      {
-        poa: currHour.poa_global ?? currHour.ghi ?? 750,
-        tempCell: currHour.temp_cell ?? 40,
-      }
-    )
-
-    // 5. Run Opportunity-Aware Economic Dispatch Solver
+    // 4. Run Opportunity-Aware Economic Dispatch Solver
     const dispatch = calculateEconomicDispatch(processedRecords, {
       tariffRatePerKwh: tariffRate,
       cleaningCost,
       waterCost: 50.0,
     })
     
-    // 6. Soiling Forecast
+    // 5. Soiling Forecast
     const forecast = generateSoilingForecast(computedSi, 48)
 
     return {
       simRecords: processedRecords,
       currentHourData: currHour,
       soilingIndex: computedSi,
-      diagnosis: diag,
       economicDispatch: dispatch,
       soilingForecast: forecast
     }
   }, [weatherState, soilingLossPct, hasDiodeFault, hasRainEvent, tariffRate, cleaningCost, selectedHour])
+
+  /* =====================================================
+     ASYNC DIAGNOSIS INFERENCE (RENDER ML BACKEND)
+     ===================================================== */
+  useEffect(() => {
+    if (!currentHourData) return;
+
+    let isSubscribed = true;
+
+    async function fetchDiagnosis() {
+      const diag = await diagnoseArrayHealth(
+        {
+          vActual: currentHourData.v_actual,
+          iActual: currentHourData.i_actual,
+          pActual: currentHourData.p_actual_kw,
+          hasDiodeFault,
+        },
+        {
+          vModeled: currentHourData.v_modeled,
+          iModeled: currentHourData.i_modeled,
+          pModeled: currentHourData.p_modeled_kw,
+        },
+        soilingIndex,
+        {
+          poa: currentHourData.poa_global ?? currentHourData.ghi ?? 750,
+          tempCell: currentHourData.temp_cell ?? 40,
+        }
+      );
+      if (isSubscribed) {
+        setDiagnosis(diag);
+      }
+    }
+
+    fetchDiagnosis();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [currentHourData, hasDiodeFault, soilingIndex]);
 
   /* =====================================================
      PRESET APPLIERS
