@@ -77,7 +77,14 @@ export async function diagnoseArrayHealth(actualMetrics, modeledMetrics, soiling
         message: data.description,
         confidence: data.confidence,
         featureAttributions: data.feature_attributions,
-        featureVector: data.feature_vector,
+        featureVector: {
+          vRatio: data.feature_vector.v_ratio,
+          iRatio: data.feature_vector.i_ratio,
+          pRatio: data.feature_vector.p_ratio,
+          pResidualKw: data.feature_vector.p_residual_kw,
+          poaWm2: data.feature_vector.poa_wm2,
+          tempCellC: data.feature_vector.temp_cell_c
+        },
         classProbabilities: data.class_probabilities,
         rootCause: data.description,
         action: action,
