@@ -122,9 +122,10 @@ export default function App() {
     let computedSi = 1.0
 
     const processedRecords = physicsBaseline.map((record) => {
-      // If rain event preset is active, inject 80% rain prob
-      const rainProb = hasRainEvent ? 85 : record.rain_prob
-      const rainMm = hasRainEvent ? 6.5 : record.rain_mm
+      // For demo purposes, we ignore live weather rain probability unless the user explicitly 
+      // toggles the Rain Override scenario, so they can test the Dispatch Alert reliably.
+      const rainProb = hasRainEvent ? 90 : 0;
+      const rainMm = hasRainEvent ? 6.5 : 0;
 
       // 2a. PIML Corrected Clean Baseline:
       // The naive physics model (record.p_modeled_kw) doesn't fully account for wind cooling or Incidence Angle Modifier (IAM) losses.
