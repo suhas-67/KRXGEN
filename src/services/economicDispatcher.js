@@ -1,0 +1,80 @@
+/**
+ * HelioSense Opportunity-Aware Economic Dispatch Engine
+ * Calculates:
+ * 1. Daily & Weekly Financial Yield Losses ($)
+ * 2. Breakeven Net Present Value (NPV) for scheduled panel cleaning
+ * 3. 72-Hour Rain Check Override to avoid wasting water and money
+ */
+
+export function calculateEconomicDispatch(simRecords, options = {}) {
+  const {
+    tariffRatePerKwh = 0.14,  // $0.14 / kWh Time-of-Use rate
+    cleaningCost = 45.0,       // Fixed labor crew charge ($)
+    waterCost = 5.0,          // Municipal water cost ($)
+    rainOverrideProb = 40.0,   // Rain probability threshold (%)
+    rainOverrideMm = 3.0,     // Rain accumulation threshold (mm)
+  } = options
+
+  // 1. Compute Daily Energy Loss (kWh) across the 24h simulation profile
+  let totalModeledKwh = 0
+  let totalActualKwh = 0
+  let maxRainProb = 0
+  let totalRainMm = 0
+
+  simRecords.forEach((record) => {
+    totalModeledKwh += (record.p_modeled_kw || 0)
+    totalActualKwh += (record.p_actual_kw || 0)
+    if (record.rain_prob > maxRainProb) {
+      maxRainProb = record.rain_prob
+    }
+    totalRainMm += (record.rain_mm || 0)
+  })
+
+  const dailyEnergyLossKwh = Math.max(0, totalModeledKwh - totalActualKwh)
+  const dailyRevenueLost = dailyEnergyLossKwh * tariffRatePerKwh
+  const weeklyRevenueLost = dailyRevenueLost * 7
+  const monthlyRevenueLost = dailyRevenueLost * 30
+
+  const totalCleaningExpense = cleaningCost + waterCost
+  const weeklyNetProfit = weeklyRevenueLost - totalCleaningExpense
+
+  // 2. Decision Logic
+  let decision = 'HOLD'
+  let decisionBadge = 'NO ACTION NEEDED'
+  let decisionClass = 'healthy'
+  let explanation = ''
+
+  const isRainComing = maxRainProb >= rainOverrideProb || totalRainMm >= rainOverrideMm
+
+  if (isRainComing) {
+    decision = 'SUPPRESS_RAIN'
+    decisionBadge = '🌧️ FREE NATURAL WASH'
+    decisionClass = 'info'
+    explanation = `High-probability precipitation (${Math.round(maxRainProb)}% chance) forecast within 72 hours. Manual wash order suppressed to save ${totalCleaningExpense.toFixed(2)} USD and ~450 Liters of water.`
+  } else if (weeklyNetProfit > 0 && dailyRevenueLost > 1.5) {
+    decision = 'DISPATCH'
+    decisionBadge = '🚨 DISPATCH CLEANING'
+    decisionClass = 'warning'
+    explanation = `Cleaning is economically viable. Accumulated weekly yield loss ($${weeklyRevenueLost.toFixed(2)}) exceeds cleaning expense ($${totalCleaningExpense.toFixed(2)}). Expected Net ROI: +$${weeklyNetProfit.toFixed(2)} / week.`
+  } else {
+    decision = 'STANDBY'
+    decisionBadge = 'BELOW COST THRESHOLD'
+    decisionClass = 'healthy'
+    explanation = `Daily revenue loss ($${dailyRevenueLost.toFixed(2)}/day) is below the breakeven threshold for a $${totalCleaningExpense.toFixed(2)} cleaning service.`
+  }
+
+  return {
+    dailyEnergyLossKwh: Math.round(dailyEnergyLossKwh * 10) / 10,
+    dailyRevenueLost: Math.round(dailyRevenueLost * 100) / 100,
+    weeklyRevenueLost: Math.round(weeklyRevenueLost * 100) / 100,
+    monthlyRevenueLost: Math.round(monthlyRevenueLost * 100) / 100,
+    totalCleaningExpense,
+    weeklyNetProfit: Math.round(weeklyNetProfit * 100) / 100,
+    maxRainProb: Math.round(maxRainProb),
+    decision,
+    decisionBadge,
+    decisionClass,
+    explanation,
+    isRainComing,
+  }
+}

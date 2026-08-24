@@ -511,7 +511,11 @@ function SoilCover({ soilingLevel = 50 }) {
 function SolarPanel({
   position = [0, 0, 0],
   covered = false,
-  soilingLevel = 0
+  soilingLevel = 0,
+  isFaulty = false,
+  isSelected = false,
+  panelId = null,
+  onClick = null
 }) {
 
   const rows = 6
@@ -529,72 +533,64 @@ function SolarPanel({
     THREE.MathUtils.clamp(soilingLevel / 100, 0, 1)
   )
 
-
   /* =======================================================
      SOLAR CELL POSITIONS
      ======================================================= */
 
   const cells = useMemo(() => {
-
     const result = []
 
-    for (
-      let row = 0;
-      row < rows;
-      row++
-    ) {
-
-      for (
-        let col = 0;
-        col < columns;
-        col++
-      ) {
-
-        const x =
-          -((columns - 1) *
-            cellWidth) / 2 +
-          col * cellWidth
-
-        const y =
-          ((rows - 1) *
-            cellHeight) / 2 -
-          row * cellHeight
-
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        const x = -((columns - 1) * cellWidth) / 2 + col * cellWidth
+        const y = ((rows - 1) * cellHeight) / 2 - row * cellHeight
 
         result.push({
-
-          id:
-            `${row}-${col}`,
-
-          position: [
-            x,
-            y,
-            0.075
-          ]
-
+          id: `${row}-${col}`,
+          position: [x, y, 0.075]
         })
-
       }
     }
-
     return result
-
   }, [])
 
-
   return (
-
     <group
-
       position={position}
-
       rotation={[
         THREE.MathUtils.degToRad(-50),
         0,
         0
       ]}
-
+      onClick={(e) => {
+        e.stopPropagation()
+        if (onClick) onClick(panelId)
+      }}
     >
+      {/* Visual Fault / Selection Glowing Trim */}
+      {isFaulty && (
+        <mesh position={[0, 0, 0.06]}>
+          <planeGeometry args={[panelWidth + 0.15, panelHeight + 0.15]} />
+          <meshBasicMaterial
+            color="#ff2a55"
+            transparent
+            opacity={0.65}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+
+      {isSelected && (
+        <mesh position={[0, 0, 0.05]}>
+          <planeGeometry args={[panelWidth + 0.2, panelHeight + 0.2]} />
+          <meshBasicMaterial
+            color="#00f0ff"
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
 
 
       {/* =================================================

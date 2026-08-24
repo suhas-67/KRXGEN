@@ -1,318 +1,399 @@
-import { useMemo } from 'react'
-import {
-  Canvas
-} from '@react-three/fiber'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, Environment, ContactShadows } from '@react-three/drei'
 
-import {
-  OrbitControls,
-  Environment,
-  ContactShadows
-} from '@react-three/drei'
-
+// 3D Visualizer Component
 import SolarPanel from './components/SolarPanel'
+
+// HelioSense Diagnostics & Intelligence Services
+import { getSolarWeather } from './services/weatherService'
+import { calculatePhysicsBaseline } from './services/physicsEngine'
+import { SoilingKalmanFilter } from './services/kalmanFilter'
+import { diagnoseArrayHealth } from './services/faultFingerprint'
+import { calculateEconomicDispatch } from './services/economicDispatcher'
+
+// UI Components
+import Header from './components/Header'
+import KpiMetrics from './components/KpiMetrics'
+import TelemetryChart from './components/TelemetryChart'
+import StringHeatmap from './components/StringHeatmap'
+import ScenarioDrawer from './components/ScenarioDrawer'
+import SdgModal from './components/SdgModal'
+
 import './App.css'
 
+export default function App() {
+  /* =====================================================
+     SIMULATION STATE & CONTROLS
+     ===================================================== */
+  const [soilingLossPct, setSoilingLossPct] = useState(20)
+  const [hasDiodeFault, setHasDiodeFault] = useState(false)
+  const [hasRainEvent, setHasRainEvent] = useState(false)
+  const [tariffRate, setTariffRate] = useState(0.14)
+  const [cleaningCost, setCleaningCost] = useState(45.0)
 
-function App() {
+  const [activePreset, setActivePreset] = useState('soiling')
+  const [viewMode, setViewMode] = useState('split') // 'split' | '3d' | 'analytics'
+  const [selectedPanel, setSelectedPanel] = useState(null)
+  const [selectedHour, setSelectedHour] = useState(12)
+  const [isSdgOpen, setIsSdgOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(true)
+  const [washToast, setWashToast] = useState(null)
+
+  // Weather data container
+  const [weatherState, setWeatherState] = useState({
+    isLive: false,
+    records: [],
+  })
 
   /* =====================================================
-     RANDOMLY SELECT EXACTLY 3 SOILED PANELS
+     FETCH WEATHER (OPEN-METEO OR FALLBACK)
      ===================================================== */
+  useEffect(() => {
+    let isMounted = true
 
-  const soiledPanels = useMemo(() => {
-
-    // Create panel indices 0 → 14
-    const indices = Array.from(
-      { length: 15 },
-      (_, index) => index
-    )
-
-    // Shuffle them
-    for (let i = indices.length - 1; i > 0; i--) {
-
-      const j = Math.floor(
-        Math.random() * (i + 1)
-      )
-
-      ;[indices[i], indices[j]] =
-        [indices[j], indices[i]]
+    async function loadWeather() {
+      const data = await getSolarWeather(10.7905, 78.7047)
+      if (isMounted) {
+        setWeatherState(data)
+      }
     }
 
-    // Select exactly 3
-    const selected = indices.slice(0, 3)
-
-    return new Set(selected)
-
+    loadWeather()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
-
   /* =====================================================
-     RANDOM SOILING INTENSITY
+     3D SOLAR ARRAY PANEL LAYOUT (15 PANELS: 3x5 GRID)
      ===================================================== */
+  const panelPositions = useMemo(() => {
+    return Array.from({ length: 15 }, (_, index) => [
+      (index % 3 - 1) * 4.5, // 3 columns
+      0.8,                    // Height
+      (Math.floor(index / 3) - 2) * 3.3, // 5 rows
+    ])
+  }, [])
+
+  // Panels affected by soiling
+  const soiledPanels = useMemo(() => {
+    if (soilingLossPct === 0) return new Set()
+    // When soiling is active, distribute dust across array
+    const set = new Set()
+    const count = Math.min(15, Math.ceil((soilingLossPct / 50) * 15))
+    for (let i = 0; i < count; i++) {
+      set.add(i)
+    }
+    return set
+  }, [soilingLossPct])
 
   const soilingLevels = useMemo(() => {
-
     const levels = {}
-
     soiledPanels.forEach((index) => {
-
-      levels[index] =
-        25 +
-        Math.floor(Math.random() * 60)
-
+      levels[index] = Math.min(100, Math.round(soilingLossPct * (1.1 + 0.2 * Math.sin(index))))
     })
-
     return levels
-
-  }, [soiledPanels])
-
+  }, [soiledPanels, soilingLossPct])
 
   /* =====================================================
-     PANEL POSITIONS
+     PHYSICS ENGINE & SIMULATION PIPELINE
      ===================================================== */
+  const { simRecords, currentHourData, soilingIndex, diagnosis, economicDispatch } = useMemo(() => {
+    if (!weatherState.records || weatherState.records.length === 0) {
+      return {
+        simRecords: [],
+        currentHourData: null,
+        soilingIndex: 1.0,
+        diagnosis: { status: 'HEALTHY', severity: 'healthy', title: 'System Initializing', message: 'Loading telemetry...', badge: 'STANDBY' },
+        economicDispatch: { dailyEnergyLossKwh: 0, dailyRevenueLost: 0, weeklyRevenueLost: 0, weeklyNetProfit: 0, decision: 'HOLD', decisionBadge: 'STANDBY', decisionClass: 'healthy', explanation: '' },
+      }
+    }
 
-  const panelPositions = Array.from(
-    { length: 15 },
-    (_, index) => [
+    // 1. Calculate theoretical clean baseline using pvlib / 1-diode model
+    const physicsBaseline = calculatePhysicsBaseline(weatherState.records, {
+      arrayCapacityKw: 5.0,
+    })
 
-      // 3 columns
-      (index % 3 - 1) * 4.5,
+    // 2. Synthesize actual telemetry incorporating soiling attenuation & diode faults
+    const soilingFactor = Math.max(0, 1.0 - soilingLossPct / 100.0)
+    const kf = new SoilingKalmanFilter({ initialSi: 1.0 })
+    let computedSi = 1.0
 
-      // Height
-      0.8,
+    const processedRecords = physicsBaseline.map((record) => {
+      // If rain event preset is active, inject 80% rain prob
+      const rainProb = hasRainEvent ? 85 : record.rain_prob
+      const rainMm = hasRainEvent ? 6.5 : record.rain_mm
 
-      // 5 rows
-      (Math.floor(index / 3) - 2) * 3.3
+      // Current derate due to dust
+      const iActual = record.i_modeled * soilingFactor
 
-    ]
-  )
+      // Voltage derate: String 2 drops by 33.3% if bypass diode fault active
+      // Array has 3 strings, so overall string 2 voltage drop manifests on that string
+      const voltageFactor = hasDiodeFault ? 0.667 : 1.0
+      const vActual = record.v_modeled * voltageFactor
 
+      // Inverter AC output kW
+      const pActualKw = (vActual * iActual) / 1000.0
+
+      // Update Kalman Filter
+      const diffuseRatio = record.ghi > 0 ? record.dhi / record.ghi : 0.2
+      const stepSi = kf.update(pActualKw, record.p_modeled_kw, diffuseRatio)
+
+      // Use mid-day solar hour (12:00) as primary representative SI
+      if (record.hour === 12 || (record.hour >= 11 && record.hour <= 14 && record.p_modeled_kw > 1.0)) {
+        computedSi = stepSi
+      }
+
+      return {
+        ...record,
+        rain_prob: rainProb,
+        rain_mm: rainMm,
+        i_actual: Math.round(iActual * 100) / 100,
+        v_actual: Math.round(vActual * 10) / 10,
+        p_actual_kw: Math.round(pActualKw * 100) / 100,
+        soiling_index: Math.round(stepSi * 1000) / 1000,
+      }
+    })
+
+    // If night or unassigned, compute final SI
+    if (computedSi === 1.0 && soilingLossPct > 0) {
+      computedSi = Math.max(0.0, 1.0 - soilingLossPct / 100.0)
+    }
+
+    // 3. Find representative midday hour or user-selected hour
+    const currHour = processedRecords.find((r) => r.hour === selectedHour) || processedRecords[12] || processedRecords[0]
+
+    // 4. Run Fault Fingerprinting Matrix
+    const diag = diagnoseArrayHealth(
+      {
+        vActual: currHour.v_actual,
+        iActual: currHour.i_actual,
+        pActual: currHour.p_actual_kw,
+        hasDiodeFault,
+      },
+      {
+        vModeled: currHour.v_modeled,
+        iModeled: currHour.i_modeled,
+        pModeled: currHour.p_modeled_kw,
+      },
+      computedSi
+    )
+
+    // 5. Run Opportunity-Aware Economic Dispatch Solver
+    const dispatch = calculateEconomicDispatch(processedRecords, {
+      tariffRatePerKwh: tariffRate,
+      cleaningCost,
+      waterCost: 5.0,
+    })
+
+    return {
+      simRecords: processedRecords,
+      currentHourData: currHour,
+      soilingIndex: computedSi,
+      diagnosis: diag,
+      economicDispatch: dispatch,
+    }
+  }, [weatherState, soilingLossPct, hasDiodeFault, hasRainEvent, tariffRate, cleaningCost, selectedHour])
+
+  /* =====================================================
+     PRESET APPLIERS
+     ===================================================== */
+  const handleApplyPreset = useCallback((preset) => {
+    setActivePreset(preset)
+    if (preset === 'clean') {
+      setSoilingLossPct(0)
+      setHasDiodeFault(false)
+      setHasRainEvent(false)
+    } else if (preset === 'soiling') {
+      setSoilingLossPct(25)
+      setHasDiodeFault(false)
+      setHasRainEvent(false)
+    } else if (preset === 'diode') {
+      setSoilingLossPct(5)
+      setHasDiodeFault(true)
+      setHasRainEvent(false)
+    } else if (preset === 'rain') {
+      setSoilingLossPct(20)
+      setHasDiodeFault(false)
+      setHasRainEvent(true)
+    }
+  }, [])
+
+  /* =====================================================
+     SIMULATE WASH PANELS ACTION
+     ===================================================== */
+  const handleWashPanels = useCallback(() => {
+    setSoilingLossPct(0)
+    setActivePreset('clean')
+    const savedAmount = (economicDispatch.weeklyRevenueLost || 18.5).toFixed(2)
+    setWashToast(`✨ Panels Washed! Soiling Index restored to 1.00 (Recovering ~$${savedAmount}/wk)`)
+    setTimeout(() => setWashToast(null), 5000)
+  }, [economicDispatch])
 
   return (
+    <div className="heliosense-app">
+      {/* Top HUD Header */}
+      <Header
+        isLiveWeather={weatherState.isLive}
+        currentWeather={currentHourData}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        onOpenSdg={() => setIsSdgOpen(true)}
+        onApplyPreset={handleApplyPreset}
+        activePreset={activePreset}
+      />
 
-    <div className="app">
-
-
-      {/* =================================================
-          HELIOSENSE HEADER
-      ================================================= */}
-
-      <div className="header">
-
-        <h1>
-          HELIOSENSE
-        </h1>
-
-        <p>
-          Solar Performance Monitoring System
-        </p>
-
-      </div>
-
-
-      {/* =================================================
-          3D SCENE
-      ================================================= */}
-
-      <div className="scene">
-
-        <Canvas
-
-          shadows
-
-          dpr={[1, 1.5]}
-
-          camera={{
-            position: [11, 10, 14],
-            fov: 48
+      {/* Main Workspace Layout */}
+      <div className="main-layout">
+        {/* Left/Collapsible Live Scenario Toolbar */}
+        <ScenarioDrawer
+          soilingLossPct={soilingLossPct}
+          setSoilingLossPct={(val) => {
+            setSoilingLossPct(val)
+            setActivePreset('custom')
           }}
+          hasDiodeFault={hasDiodeFault}
+          setHasDiodeFault={(val) => {
+            setHasDiodeFault(val)
+            setActivePreset('custom')
+          }}
+          hasRainEvent={hasRainEvent}
+          setHasRainEvent={(val) => {
+            setHasRainEvent(val)
+            setActivePreset('custom')
+          }}
+          tariffRate={tariffRate}
+          setTariffRate={setTariffRate}
+          cleaningCost={cleaningCost}
+          setCleaningCost={setCleaningCost}
+          onWashPanels={handleWashPanels}
+          activePreset={activePreset}
+          onApplyPreset={handleApplyPreset}
+          isOpen={isDrawerOpen}
+          setIsOpen={setIsDrawerOpen}
+        />
 
-        >
-
-
-          {/* =================================================
-              ENVIRONMENT
-          ================================================= */}
-
-          <Environment
-            preset="sunset"
+        {/* Central Operations Stage */}
+        <main className={`operations-stage ${!isDrawerOpen ? 'drawer-closed' : ''}`}>
+          {/* Top KPI Summary Banner */}
+          <KpiMetrics
+            soilingIndex={soilingIndex}
+            diagnosis={diagnosis}
+            economicDispatch={economicDispatch}
+            soilingLossPct={soilingLossPct}
+            currentHourData={currentHourData}
           />
 
+          {/* Dynamic View Mode Content */}
+          <div className={`view-container mode-${viewMode}`}>
+            {/* 3D Digital Twin View */}
+            {(viewMode === 'split' || viewMode === '3d') && (
+              <div className="digital-twin-panel">
+                <div className="twin-badge-overlay">
+                  <span className="twin-tag">3D DIGITAL TWIN • 15 PANELS (3 STRINGS)</span>
+                  <span className="twin-hint">🖱️ Left click: Rotate • Right click: Pan • Scroll: Zoom</span>
+                </div>
 
-          {/* =================================================
-              SUNLIGHT
-          ================================================= */}
+                <div className="canvas-wrapper">
+                  <Canvas
+                    shadows
+                    dpr={[1, 1.5]}
+                    camera={{ position: [10, 11, 13], fov: 46 }}
+                  >
+                    <Environment preset="sunset" />
+                    <directionalLight
+                      castShadow
+                      position={[5, 10, 5]}
+                      intensity={2.8}
+                      shadow-mapSize-width={1024}
+                      shadow-mapSize-height={1024}
+                    />
+                    <ambientLight intensity={0.4} />
 
-          <directionalLight
+                    {/* 15 Solar Panels with Live Soiling & Fault Highlights */}
+                    {panelPositions.map((position, index) => {
+                      const isSoiled = soiledPanels.has(index)
+                      const isString2 = index >= 5 && index <= 9
+                      const isPanelFaulted = hasDiodeFault && isString2
+                      const isSelected = selectedPanel === index
 
-            castShadow
+                      return (
+                        <SolarPanel
+                          key={index}
+                          position={position}
+                          covered={isSoiled}
+                          soilingLevel={soilingLevels[index] || (isSoiled ? soilingLossPct : 0)}
+                          isFaulty={isPanelFaulted}
+                          isSelected={isSelected}
+                          panelId={index}
+                          onClick={(id) => setSelectedPanel(selectedPanel === id ? null : id)}
+                        />
+                      )
+                    })}
 
-            position={[
-              5,
-              8,
-              5
-            ]}
+                    {/* Cyberpunk Dark Ground & Shadow */}
+                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.32, 0]} receiveShadow>
+                      <planeGeometry args={[32, 32]} />
+                      <meshStandardMaterial color="#0b111a" roughness={0.9} />
+                    </mesh>
 
-            intensity={3}
+                    <ContactShadows
+                      frames={1}
+                      position={[0, -1.30, 0]}
+                      opacity={0.7}
+                      scale={22}
+                      blur={2.5}
+                      far={12}
+                    />
 
-            shadow-mapSize-width={1024}
+                    <gridHelper args={[32, 32, '#1e2e42', '#0d1824']} position={[0, -1.30, 0]} />
+                    <OrbitControls
+                      enableDamping
+                      dampingFactor={0.08}
+                      minDistance={6}
+                      maxDistance={30}
+                      maxPolarAngle={Math.PI / 2.05}
+                    />
+                  </Canvas>
+                </div>
+              </div>
+            )}
 
-            shadow-mapSize-height={1024}
-
-          />
-
-
-          {/* =================================================
-              SOFT LIGHT
-          ================================================= */}
-
-          <ambientLight
-            intensity={0.35}
-          />
-
-
-          {/* =================================================
-              15 SOLAR PANELS
-          ================================================= */}
-
-          {panelPositions.map(
-            (position, index) => {
-
-              const isSoiled =
-                soiledPanels.has(index)
-
-              return (
-
-                <SolarPanel
-
-                  key={index}
-
-                  position={position}
-
-                  covered={isSoiled}
-
-                  soilingLevel={
-                    soilingLevels[index] || 0
-                  }
-
+            {/* Analytics & Telemetry Charts */}
+            {(viewMode === 'split' || viewMode === 'analytics') && (
+              <div className="analytics-panel">
+                <TelemetryChart
+                  simRecords={simRecords}
+                  selectedHour={selectedHour}
+                  setSelectedHour={setSelectedHour}
                 />
-
-              )
-
-            }
-          )}
-
-
-          {/* =================================================
-              GROUND
-          ================================================= */}
-
-          <mesh
-
-            rotation={[
-              -Math.PI / 2,
-              0,
-              0
-            ]}
-
-            position={[
-              0,
-              -1.32,
-              0
-            ]}
-
-            receiveShadow
-
-          >
-
-            <planeGeometry
-              args={[30, 30]}
-            />
-
-            <meshStandardMaterial
-
-              color="#111820"
-
-              roughness={0.85}
-
-            />
-
-          </mesh>
-
-
-          {/* =================================================
-              CONTACT SHADOW
-          ================================================= */}
-
-          <ContactShadows
-
-            frames={1}
-
-            position={[
-              0,
-              -1.30,
-              0
-            ]}
-
-            opacity={0.65}
-
-            scale={20}
-
-            blur={2.5}
-
-            far={12}
-
-          />
-
-
-          {/* =================================================
-              GROUND GRID
-          ================================================= */}
-
-          <gridHelper
-
-            args={[
-              30,
-              30,
-              '#26333f',
-              '#17212a'
-            ]}
-
-            position={[
-              0,
-              -1.30,
-              0
-            ]}
-
-          />
-
-
-          {/* =================================================
-              CAMERA CONTROLS
-          ================================================= */}
-
-          <OrbitControls
-
-            enableDamping
-
-            dampingFactor={0.08}
-
-            minDistance={8}
-
-            maxDistance={28}
-
-            maxPolarAngle={
-              Math.PI / 2.05
-            }
-
-          />
-
-        </Canvas>
-
+                <StringHeatmap
+                  soiledPanels={soiledPanels}
+                  soilingLevels={soilingLevels}
+                  hasDiodeFault={hasDiodeFault}
+                  selectedPanel={selectedPanel}
+                  setSelectedPanel={setSelectedPanel}
+                  diagnosis={diagnosis}
+                  soilingIndex={soilingIndex}
+                  currentHourData={currentHourData}
+                />
+              </div>
+            )}
+          </div>
+        </main>
       </div>
 
+      {/* Floating Panel Wash Toast */}
+      {washToast && (
+        <div className="floating-toast">
+          <span>{washToast}</span>
+          <button onClick={() => setWashToast(null)}>✕</button>
+        </div>
+      )}
+
+      {/* UN SDGs Presentation Modal */}
+      <SdgModal isOpen={isSdgOpen} onClose={() => setIsSdgOpen(false)} />
     </div>
   )
 }
-
-export default App
