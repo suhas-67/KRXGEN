@@ -16,7 +16,12 @@ export default function ScenarioDrawer({
   onApplyPreset,
   isOpen,
   setIsOpen,
+  diagnosis,
+  isCleaning,
 }) {
+  const fv = diagnosis?.featureVector || { vRatio: 1.0, iRatio: 1.0, pRatio: 1.0, pResidualKw: 0.0 }
+  const [showAiDetails, setShowAiDetails] = React.useState(true)
+
   return (
     <aside className={`scenario-drawer ${isOpen ? 'open' : 'closed'}`}>
       <div className="drawer-header">
@@ -76,13 +81,72 @@ export default function ScenarioDrawer({
 
           {/* Primary Action: Wash Panels */}
           <div className="drawer-section">
-            <button className="wash-panels-btn" onClick={onWashPanels}>
-              <span className="wash-btn-icon">🧼</span>
+            <button 
+              className={`wash-panels-btn ${isCleaning ? 'cleaning' : ''}`} 
+              onClick={onWashPanels}
+              disabled={isCleaning || soilingLossPct === 0}
+            >
+              <span className="wash-btn-icon">{isCleaning ? '⏳' : '🧼'}</span>
               <div>
-                <strong>Wash Panels (Simulate Cleaning)</strong>
-                <small>Resets SI to 1.0 & restores full generation</small>
+                <strong>{isCleaning ? 'Washing Panels...' : 'Wash Panels (Simulate Cleaning)'}</strong>
+                <small>{isCleaning ? 'Applying high-pressure wash' : 'Resets SI to 1.0 & restores full generation'}</small>
               </div>
             </button>
+          </div>
+
+          {/* AI Feature Vector & Attribution Card */}
+          <div className="drawer-section">
+            <div
+              className="slider-header"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowAiDetails(!showAiDetails)}
+            >
+              <label className="section-label">🤖 AI FEATURE VECTOR (z_t) & ATTRIBUTION</label>
+              <span className="slider-val-badge" style={{ color: '#00d2ff', fontSize: '10px' }}>
+                {showAiDetails ? '▼ Hide' : '▲ View'}
+              </span>
+            </div>
+
+            {showAiDetails && (
+              <div
+                style={{
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  border: '1px solid rgba(0, 210, 255, 0.25)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '11px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Active Model:</span>
+                  <strong style={{ color: '#38bdf8' }}>PIML Ensemble (100 Trees)</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Voltage Ratio (V_act / V_mod):</span>
+                  <strong style={{ fontFamily: 'var(--font-mono)', color: fv.vRatio < 0.8 ? '#ff4d6d' : 'var(--text-main)' }}>
+                    {fv.vRatio.toFixed(3)}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Current Ratio (I_act / I_mod):</span>
+                  <strong style={{ fontFamily: 'var(--font-mono)', color: fv.iRatio < 0.9 ? '#fbbf24' : 'var(--text-main)' }}>
+                    {fv.iRatio.toFixed(3)}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Residual Loss (P_mod - P_act):</span>
+                  <strong style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>
+                    {fv.pResidualKw.toFixed(3)} kW
+                  </strong>
+                </div>
+                <div style={{ marginTop: '2px', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-muted)', fontSize: '10px' }}>
+                  💡 <strong>Attribution:</strong> {diagnosis?.featureAttributions || 'Nominal tracking within physics limits'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Soiling Slider */}
@@ -143,12 +207,12 @@ export default function ScenarioDrawer({
             <label className="section-label">ECONOMIC DISPATCH PARAMETERS</label>
 
             <div className="input-row">
-              <label>Grid Tariff ($/kWh):</label>
+              <label>Grid Tariff (₹/kWh):</label>
               <input
                 type="number"
-                step="0.01"
-                min="0.05"
-                max="0.60"
+                step="0.5"
+                min="2.0"
+                max="20.0"
                 value={tariffRate}
                 onChange={(e) => setTariffRate(Number(e.target.value))}
                 className="num-input"
@@ -156,12 +220,12 @@ export default function ScenarioDrawer({
             </div>
 
             <div className="input-row">
-              <label>Cleaning Service Fee ($):</label>
+              <label>Cleaning Service Fee (₹):</label>
               <input
                 type="number"
-                step="5"
-                min="10"
-                max="200"
+                step="100"
+                min="500"
+                max="10000"
                 value={cleaningCost}
                 onChange={(e) => setCleaningCost(Number(e.target.value))}
                 className="num-input"

@@ -49,11 +49,97 @@ export async function getSolarWeather(lat = 10.7905, lon = 78.7047) {
       records,
     }
   } catch (err) {
-    console.warn('Weather API failed or timed out. Falling back to cached clear-sky simulation:', err.message)
-    return {
-      isLive: false,
-      records: generateClearSkyFallback(),
+    console.warn('Open-Meteo API failed:', err.message)
+    console.info('Attempting fallback to NASA POWER API...')
+    try {
+      return await getNasaPowerWeather(lat, lon)
+    } catch (nasaErr) {
+      console.warn('NASA POWER API failed:', nasaErr.message)
+      console.info('Falling back to cached clear-sky simulation.')
+      return {
+        isLive: false,
+        records: generateClearSkyFallback(),
+      }
     }
+  }
+}
+
+/**
+ * NASA POWER API Fallback
+ * Provides historical near-real-time data mapped to today's hours.
+ */
+async function getNasaPowerWeather(lat, lon) {
+  // NASA POWER lags by ~2 days. Fetch for 2 days ago and project to today.
+  const date = new Date()
+  date.setDate(date.getDate() - 2)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const dateStr = `${year}${month}${day}`
+
+  const url = `https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=ALLSKY_SFC_SW_DWN,T2M,WS10M,PRECTOTCORR&community=RE&longitude=${lon}&latitude=${lat}&start=${dateStr}&end=${dateStr}&format=JSON`
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 4000)
+  
+  const response = await fetch(url, { signal: controller.signal })
+  clearTimeout(timeoutId)
+
+  if (!response.ok) {
+    throw new Error(`NASA POWER API returned status ${response.status}`)
+  }
+
+  const data = await response.json()
+  const params = data.properties.parameter
+  const records = []
+
+  // Keys look like "YYYYMMDDHH"
+  const keys = Object.keys(params.ALLSKY_SFC_SW_DWN).sort()
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  for (let i = 0; i < Math.min(24, keys.length); i++) {
+    const key = keys[i]
+    const hour = parseInt(key.slice(8, 10), 10)
+    
+    const time = new Date(today)
+    time.setHours(hour)
+
+    let ghi = params.ALLSKY_SFC_SW_DWN[key]
+    if (ghi === -999) ghi = 0 // Handle missing data
+
+    let temp_amb = params.T2M[key]
+    if (temp_amb === -999) temp_amb = 25
+
+    let wind_speed = params.WS10M[key]
+    if (wind_speed === -999) wind_speed = 3.0
+
+    let rain_mm = params.PRECTOTCORR[key]
+    if (rain_mm === -999) rain_mm = 0
+
+    // Approximate DNI and DHI from GHI
+    const dni = ghi * 0.82
+    const dhi = ghi * 0.18
+    const rain_prob = rain_mm > 0 ? 80 : 5
+
+    records.push({
+      timestamp: time.toISOString(),
+      hour,
+      ghi: Math.round(ghi * 10) / 10,
+      dni: Math.round(dni * 10) / 10,
+      dhi: Math.round(dhi * 10) / 10,
+      temp_amb: Math.round(temp_amb * 10) / 10,
+      wind_speed: Math.round(wind_speed * 10) / 10,
+      rain_prob,
+      rain_mm: Math.round(rain_mm * 10) / 10,
+      is_live: true, // Tagged as live since it's real API data
+    })
+  }
+
+  return {
+    isLive: true,
+    records,
   }
 }
 

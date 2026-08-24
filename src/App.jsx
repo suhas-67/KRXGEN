@@ -29,8 +29,8 @@ export default function App() {
   const [soilingLossPct, setSoilingLossPct] = useState(20)
   const [hasDiodeFault, setHasDiodeFault] = useState(false)
   const [hasRainEvent, setHasRainEvent] = useState(false)
-  const [tariffRate, setTariffRate] = useState(0.14)
-  const [cleaningCost, setCleaningCost] = useState(45.0)
+  const [tariffRate, setTariffRate] = useState(7.5)
+  const [cleaningCost, setCleaningCost] = useState(1500.0)
 
   const [activePreset, setActivePreset] = useState('soiling')
   const [viewMode, setViewMode] = useState('split') // 'split' | '3d' | 'analytics'
@@ -39,6 +39,7 @@ export default function App() {
   const [isSdgOpen, setIsSdgOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(true)
   const [washToast, setWashToast] = useState(null)
+  const [isCleaning, setIsCleaning] = useState(false)
 
   // Weather data container
   const [weatherState, setWeatherState] = useState({
@@ -164,7 +165,7 @@ export default function App() {
     // 3. Find representative midday hour or user-selected hour
     const currHour = processedRecords.find((r) => r.hour === selectedHour) || processedRecords[12] || processedRecords[0]
 
-    // 4. Run Fault Fingerprinting Matrix
+    // 4. Run Fault Fingerprinting Matrix & PIML Inference
     const diag = diagnoseArrayHealth(
       {
         vActual: currHour.v_actual,
@@ -177,14 +178,18 @@ export default function App() {
         iModeled: currHour.i_modeled,
         pModeled: currHour.p_modeled_kw,
       },
-      computedSi
+      computedSi,
+      {
+        poa: currHour.poa_global ?? currHour.ghi ?? 750,
+        tempCell: currHour.temp_cell ?? 40,
+      }
     )
 
     // 5. Run Opportunity-Aware Economic Dispatch Solver
     const dispatch = calculateEconomicDispatch(processedRecords, {
       tariffRatePerKwh: tariffRate,
       cleaningCost,
-      waterCost: 5.0,
+      waterCost: 300.0,
     })
 
     return {
@@ -224,12 +229,36 @@ export default function App() {
      SIMULATE WASH PANELS ACTION
      ===================================================== */
   const handleWashPanels = useCallback(() => {
-    setSoilingLossPct(0)
-    setActivePreset('clean')
-    const savedAmount = (economicDispatch.weeklyRevenueLost || 18.5).toFixed(2)
-    setWashToast(`✨ Panels Washed! Soiling Index restored to 1.00 (Recovering ~$${savedAmount}/wk)`)
-    setTimeout(() => setWashToast(null), 5000)
-  }, [economicDispatch])
+    if (isCleaning || soilingLossPct === 0) return;
+    
+    setIsCleaning(true);
+    const startPct = soilingLossPct;
+    const duration = 2000; // 2 seconds for a nice visual wash effect
+    const startTime = performance.now();
+    const savedAmount = (economicDispatch.weeklyRevenueLost || 180.0).toFixed(2);
+
+    const animateCleaning = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const currentPct = startPct * (1 - easeOut);
+      
+      setSoilingLossPct(currentPct);
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCleaning);
+      } else {
+        setSoilingLossPct(0);
+        setActivePreset('clean');
+        setIsCleaning(false);
+        setWashToast(`✨ Panels Washed! Soiling Index restored to 1.00 (Recovering ~₹${savedAmount}/wk)`);
+        setTimeout(() => setWashToast(null), 5000);
+      }
+    };
+
+    requestAnimationFrame(animateCleaning);
+  }, [soilingLossPct, economicDispatch, isCleaning]);
 
   return (
     <div className="heliosense-app">
@@ -240,8 +269,6 @@ export default function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenSdg={() => setIsSdgOpen(true)}
-        onApplyPreset={handleApplyPreset}
-        activePreset={activePreset}
       />
 
       {/* Main Workspace Layout */}
@@ -272,6 +299,8 @@ export default function App() {
           onApplyPreset={handleApplyPreset}
           isOpen={isDrawerOpen}
           setIsOpen={setIsDrawerOpen}
+          diagnosis={diagnosis}
+          isCleaning={isCleaning}
         />
 
         {/* Central Operations Stage */}

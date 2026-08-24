@@ -1,16 +1,16 @@
 /**
  * HelioSense Opportunity-Aware Economic Dispatch Engine
  * Calculates:
- * 1. Daily & Weekly Financial Yield Losses ($)
+ * 1. Daily & Weekly Financial Yield Losses (₹)
  * 2. Breakeven Net Present Value (NPV) for scheduled panel cleaning
  * 3. 72-Hour Rain Check Override to avoid wasting water and money
  */
 
 export function calculateEconomicDispatch(simRecords, options = {}) {
   const {
-    tariffRatePerKwh = 0.14,  // $0.14 / kWh Time-of-Use rate
-    cleaningCost = 45.0,       // Fixed labor crew charge ($)
-    waterCost = 5.0,          // Municipal water cost ($)
+    tariffRatePerKwh = 7.5,   // ₹7.5 / kWh Time-of-Use rate
+    cleaningCost = 1500.0,    // Fixed labor crew charge (₹)
+    waterCost = 300.0,        // Municipal water cost (₹)
     rainOverrideProb = 40.0,   // Rain probability threshold (%)
     rainOverrideMm = 3.0,     // Rain accumulation threshold (mm)
   } = options
@@ -50,17 +50,17 @@ export function calculateEconomicDispatch(simRecords, options = {}) {
     decision = 'SUPPRESS_RAIN'
     decisionBadge = '🌧️ FREE NATURAL WASH'
     decisionClass = 'info'
-    explanation = `High-probability precipitation (${Math.round(maxRainProb)}% chance) forecast within 72 hours. Manual wash order suppressed to save ${totalCleaningExpense.toFixed(2)} USD and ~450 Liters of water.`
-  } else if (weeklyNetProfit > 0 && dailyRevenueLost > 1.5) {
+    explanation = `High-probability precipitation (${Math.round(maxRainProb)}% chance) forecast within 72 hours. Manual wash order suppressed to save ₹${totalCleaningExpense.toFixed(2)} and ~450 Liters of water.`
+  } else if (weeklyNetProfit > 0 && dailyRevenueLost > 100) {
     decision = 'DISPATCH'
     decisionBadge = '🚨 DISPATCH CLEANING'
     decisionClass = 'warning'
-    explanation = `Cleaning is economically viable. Accumulated weekly yield loss ($${weeklyRevenueLost.toFixed(2)}) exceeds cleaning expense ($${totalCleaningExpense.toFixed(2)}). Expected Net ROI: +$${weeklyNetProfit.toFixed(2)} / week.`
+    explanation = `Cleaning is economically viable. Accumulated weekly yield loss (₹${weeklyRevenueLost.toFixed(2)}) exceeds cleaning expense (₹${totalCleaningExpense.toFixed(2)}). Expected Net ROI: +₹${weeklyNetProfit.toFixed(2)} / week.`
   } else {
     decision = 'STANDBY'
     decisionBadge = 'BELOW COST THRESHOLD'
     decisionClass = 'healthy'
-    explanation = `Daily revenue loss ($${dailyRevenueLost.toFixed(2)}/day) is below the breakeven threshold for a $${totalCleaningExpense.toFixed(2)} cleaning service.`
+    explanation = `Daily revenue loss (₹${dailyRevenueLost.toFixed(2)}/day) is below the breakeven threshold for a ₹${totalCleaningExpense.toFixed(2)} cleaning service.`
   }
 
   return {

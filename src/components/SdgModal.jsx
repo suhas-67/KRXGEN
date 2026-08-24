@@ -83,7 +83,7 @@ export default function SdgModal({ isOpen, onClose }) {
         <div className="modal-footer">
           <div className="modal-impact-stats">
             <div className="stat-pill">
-              <strong>$0</strong> Added Hardware Cost
+              <strong>₹0</strong> Added Hardware Cost
             </div>
             <div className="stat-pill">
               <strong>100%</strong> Pure Software / Zero Carbon Footprint

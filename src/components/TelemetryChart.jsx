@@ -13,7 +13,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
 
   // Prepare series data based on selected tab
   const chartData = useMemo(() => {
-    if (!simRecords || simRecords.length === 0) return { actual: [], modeled: [], maxVal: 1, unit: 'kW' }
+    if (!simRecords || simRecords.length === 0) return { series: [], maxVal: 1, unit: 'kW' }
 
     let maxVal = 0.1
     let unit = 'kW'
@@ -42,6 +42,12 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
         unit = 'A'
         labelActual = 'Actual String Current (Imp)'
         labelModeled = 'Modeled Current (Imod)'
+      } else if (metricTab === 'residual') {
+        act = Math.max(0, (r.p_modeled_kw ?? 0) - (r.p_actual_kw ?? 0))
+        mod = r.p_modeled_kw ?? 0
+        unit = 'kW'
+        labelActual = 'PIML Residual Loss (ΔP)'
+        labelModeled = 'Clean Baseline (Pmod)'
       } else {
         act = r.poa_global ?? r.ghi ?? 0
         mod = r.temp_cell ?? 25
@@ -118,6 +124,12 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             onClick={() => setMetricTab('power')}
           >
             ⚡ Power (kW)
+          </button>
+          <button
+            className={`chart-tab ${metricTab === 'residual' ? 'active' : ''}`}
+            onClick={() => setMetricTab('residual')}
+          >
+            📉 PIML Residual (kW)
           </button>
           <button
             className={`chart-tab ${metricTab === 'voltage' ? 'active' : ''}`}
