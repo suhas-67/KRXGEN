@@ -20,12 +20,12 @@ export function calculateThermalRisk(iString, tAmb, isFaulted) {
   // 1. Calculate Reverse-Bias Power Dissipation
   // When a cell is shaded or a diode fails, the healthy cells in the string
   // force current through the shaded cell, which acts as a resistive load.
-  const vReverse = 15.0; // Typical reverse bias voltage across a shaded sub-string (Volts)
+  const vReverse = 12.0; // Typical reverse bias voltage across shaded sub-string (Volts)
   const pDissipated = iString * vReverse; // Watts
 
   // 2. Estimate Localized Hotspot Temperature (strictly constrained to 80°C - 200°C)
   // T_hotspot = T_cell + (Thermal Resistance * P_dissipated)
-  const thetaTh = 2.8; // Thermal resistance (°C/W) - how well the cell dissipates heat
+  const thetaTh = 0.65; // Localized cell thermal resistance (°C/W)
   let rawHotspot = tCellNominal + (thetaTh * pDissipated);
 
   // Hotspot occurs strictly in the range of 80°C to 200°C
