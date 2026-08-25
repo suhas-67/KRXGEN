@@ -241,7 +241,7 @@ export default function TelemetryChart({
             {/* Playback Speed Controller Chips */}
             <div className="speed-controller-wrap">
               <span className="speed-label">Speed:</span>
-              {[1, 2, 4, 8].map((spd) => (
+              {[1, 2, 3, 4, 8].map((spd) => (
                 <button
                   key={spd}
                   className={`speed-pill ${playSpeed === spd ? 'active' : ''}`}
