@@ -2072,9 +2072,46 @@
   font-weight: 700;
 }
 
-/* =========================================================
-   AUTONOMOUS MULTI-WEEK DUST ACCRETION TIMELINE STYLES
-   ========================================================= */
+.speed-controller-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.speed-label {
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.speed-pill {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-pill:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.speed-pill.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(2, 132, 199, 0.6);
+}
+
 .scrubber-fast-btn {
   background: rgba(245, 158, 11, 0.15);
   border: 1px solid rgba(245, 158, 11, 0.4);

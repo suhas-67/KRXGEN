@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 
 export default function TelemetryChart({
   simRecords,
@@ -15,54 +15,59 @@ export default function TelemetryChart({
   const [hoveredIndex, setHoveredIndex] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isFastAccreting, setIsFastAccreting] = useState(false)
+  const [playSpeed, setPlaySpeed] = useState(2) // 1x | 2x | 4x | 8x
 
-  // Auto-play timeline animation loop (6 AM to 6 PM with continuous multi-week dust accretion)
+  // Synchronized refs to avoid StrictMode double-execution on timer ticks
+  const hourRef = useRef(selectedHour);
+  const dayRef = useRef(simulationDay);
+  hourRef.current = selectedHour;
+  dayRef.current = simulationDay;
+
+  // Auto-play daylight loop (6 AM to 6 PM) advancing day-by-day (1, 2, 3... 28) sequentially
   useEffect(() => {
     let timer;
     if (isPlaying) {
+      const stepMs = Math.max(30, Math.round(320 / playSpeed));
       timer = setInterval(() => {
-        setSelectedHour((prevHour) => {
-          const currentHour = typeof prevHour === 'number' && !isNaN(prevHour) ? prevHour : 6;
-          if (currentHour >= 18) {
-            // At dusk, advance the day and increment natural dust accumulation!
-            if (setSimulationDay) {
-              setSimulationDay((prevDay) => {
-                const dayNum = Number(prevDay);
-                const safePrev = isNaN(dayNum) ? 1 : dayNum;
-                return safePrev >= 28 ? 1 : safePrev + 1;
-              });
-            }
-            return 6;
+        const curHr = typeof hourRef.current === 'number' && !isNaN(hourRef.current) ? hourRef.current : 6;
+        const curDay = typeof dayRef.current === 'number' && !isNaN(dayRef.current) ? dayRef.current : 1;
+
+        if (curHr >= 18) {
+          // At dusk, advance exactly 1 day sequentially
+          const nextDay = curDay >= 28 ? 1 : curDay + 1;
+          setSelectedHour(6);
+          if (setSimulationDay) {
+            setSimulationDay(nextDay);
           }
-          return currentHour + 1;
-        });
-      }, 850);
+        } else {
+          setSelectedHour(curHr + 1);
+        }
+      }, stepMs);
     }
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, setSelectedHour, setSimulationDay]);
+  }, [isPlaying, playSpeed, setSelectedHour, setSimulationDay]);
 
-  // Fast-Forward Multi-Week Dust Accretion Timelapse (Day 1 -> Day 21 over ~7 seconds)
+  // Fast-Forward Multi-Week Dust Accretion Timelapse (Day 1 -> Day 28 over all consecutive days)
   useEffect(() => {
     let fastTimer;
     if (isFastAccreting) {
+      const stepMs = Math.max(25, Math.round(180 / playSpeed));
       fastTimer = setInterval(() => {
-        setSimulationDay((prevDay) => {
-          const dayNum = Number(prevDay);
-          const safePrev = isNaN(dayNum) ? 1 : dayNum;
-          if (safePrev >= 28) {
-            setIsFastAccreting(false);
-            return 28;
-          }
-          return safePrev + 1;
-        });
-      }, 350);
+        const curDay = typeof dayRef.current === 'number' && !isNaN(dayRef.current) ? dayRef.current : 1;
+        if (curDay >= 28) {
+          setIsFastAccreting(false);
+          if (setSimulationDay) setSimulationDay(28);
+        } else {
+          if (setSimulationDay) setSimulationDay(curDay + 1);
+        }
+      }, stepMs);
     }
     return () => {
       if (fastTimer) clearInterval(fastTimer);
     };
-  }, [isFastAccreting, setSimulationDay]);
+  }, [isFastAccreting, playSpeed, setSimulationDay]);
 
   // Current selected hour record
   const currentRecord = useMemo(() => {
@@ -233,13 +238,28 @@ export default function TelemetryChart({
           </div>
 
           <div className="scrubber-controls">
+            {/* Playback Speed Controller Chips */}
+            <div className="speed-controller-wrap">
+              <span className="speed-label">Speed:</span>
+              {[1, 2, 4, 8].map((spd) => (
+                <button
+                  key={spd}
+                  className={`speed-pill ${playSpeed === spd ? 'active' : ''}`}
+                  onClick={() => setPlaySpeed(spd)}
+                  title={`Set simulation speed to ${spd}x`}
+                >
+                  {spd}x
+                </button>
+              ))}
+            </div>
+
             <button 
               className={`scrubber-play-btn ${isPlaying ? 'playing' : ''}`}
               onClick={() => {
                 setIsFastAccreting(false);
                 setIsPlaying(!isPlaying);
               }}
-              title={isPlaying ? 'Pause simulation' : 'Play 24h daylight cycle (accumulates dust over days)'}
+              title={isPlaying ? 'Pause simulation' : 'Play daylight cycles advancing through all days sequentially'}
             >
               {isPlaying ? '⏸ Pause' : '▶ Play Day'}
             </button>
@@ -249,9 +269,9 @@ export default function TelemetryChart({
                 setIsPlaying(false);
                 setIsFastAccreting(!isFastAccreting);
               }}
-              title="Fast-forward 3-4 weeks to watch dust accumulate automatically"
+              title="Fast-forward through all 4 consecutive weeks to watch dust accumulate automatically"
             >
-              {isFastAccreting ? '⏳ Accreting...' : '⏩ Accrete 3 Weeks'}
+              {isFastAccreting ? '⏳ Accreting...' : '⏩ Accrete 4 Weeks'}
             </button>
           </div>
         </div>
