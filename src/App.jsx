@@ -320,11 +320,16 @@ export default function App() {
   /* =====================================================
      SIMULATION DAY & DUST ACCRETION HANDLER
      ===================================================== */
-  const handleSetSimulationDay = useCallback((day) => {
-    const clampedDay = Math.max(1, Math.min(28, day));
-    setSimulationDay(clampedDay);
-    const computedLoss = calculateDustLossFromDays(clampedDay);
-    setSoilingLossPct(computedLoss);
+  const handleSetSimulationDay = useCallback((dayOrUpdater) => {
+    setSimulationDay((prevDay) => {
+      const resolved = typeof dayOrUpdater === 'function' ? dayOrUpdater(prevDay || 1) : dayOrUpdater;
+      const numDay = Number(resolved);
+      const safeDay = isNaN(numDay) ? 1 : numDay;
+      const clampedDay = Math.max(1, Math.min(28, safeDay));
+      const computedLoss = calculateDustLossFromDays(clampedDay);
+      setSoilingLossPct(computedLoss);
+      return clampedDay;
+    });
   }, []);
 
   /* =====================================================

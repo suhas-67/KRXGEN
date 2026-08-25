@@ -22,14 +22,19 @@ export default function TelemetryChart({
     if (isPlaying) {
       timer = setInterval(() => {
         setSelectedHour((prevHour) => {
-          if (prevHour >= 18) {
+          const currentHour = typeof prevHour === 'number' && !isNaN(prevHour) ? prevHour : 6;
+          if (currentHour >= 18) {
             // At dusk, advance the day and increment natural dust accumulation!
             if (setSimulationDay) {
-              setSimulationDay((prevDay) => (prevDay >= 28 ? 1 : prevDay + 1));
+              setSimulationDay((prevDay) => {
+                const dayNum = Number(prevDay);
+                const safePrev = isNaN(dayNum) ? 1 : dayNum;
+                return safePrev >= 28 ? 1 : safePrev + 1;
+              });
             }
             return 6;
           }
-          return prevHour + 1;
+          return currentHour + 1;
         });
       }, 850);
     }
@@ -44,11 +49,13 @@ export default function TelemetryChart({
     if (isFastAccreting) {
       fastTimer = setInterval(() => {
         setSimulationDay((prevDay) => {
-          if (prevDay >= 28) {
+          const dayNum = Number(prevDay);
+          const safePrev = isNaN(dayNum) ? 1 : dayNum;
+          if (safePrev >= 28) {
             setIsFastAccreting(false);
             return 28;
           }
-          return prevDay + 1;
+          return safePrev + 1;
         });
       }, 350);
     }
