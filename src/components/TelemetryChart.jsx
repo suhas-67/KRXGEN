@@ -1,8 +1,31 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 
 export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour, diagnosis, soilingIndex, soilingForecast }) {
   const [metricTab, setMetricTab] = useState('power') // 'power' | 'voltage' | 'current' | 'weather'
   const [hoveredIndex, setHoveredIndex] = useState(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  // Auto-play timeline animation loop (6 AM to 6 PM)
+  useEffect(() => {
+    let timer;
+    if (isPlaying) {
+      timer = setInterval(() => {
+        setSelectedHour((prev) => {
+          if (prev >= 18) return 6;
+          return prev + 1;
+        });
+      }, 900);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isPlaying, setSelectedHour]);
+
+  // Current selected hour record
+  const currentRecord = useMemo(() => {
+    if (!simRecords || simRecords.length === 0) return null;
+    return simRecords.find((r) => r.hour === selectedHour) || simRecords[12] || simRecords[0];
+  }, [simRecords, selectedHour]);
 
   // Chart dimensions
   const width = 800
@@ -134,12 +157,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
   const forecastPath = useMemo(() => {
     if (metricTab !== 'soiling' || !soilingForecast || !soilingForecast.length) return ''
     
-    // We append the forecast to the end of the historical chart
-    // The width of the chart is X=chartW. We can scale the forecast over the same width 
-    // or just compress it. Let's make the forecast take up the right half.
-    // Actually, simple way: Just map the 48h forecast onto the same X axis as if it continues
     return soilingForecast.reduce((path, pt, i) => {
-      // Map i from 0..48 to X coordinates stretching from current hour to the end of the chart width
       const xStart = getX(chartData.series.length - 1);
       const xEnd = chartW + padding.left;
       const x = xStart + (i / 48) * (xEnd - xStart);
@@ -150,8 +168,114 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
 
   const activeHover = hoveredIndex !== null ? chartData.series[hoveredIndex] : null
 
+  // Format hour for display
+  const formatHourLabel = (hr) => {
+    if (hr === 0 || hr === 24) return '12:00 AM'
+    if (hr === 12) return '12:00 PM (Noon)'
+    if (hr < 12) return `${hr}:00 AM`
+    return `${hr - 12}:00 PM`
+  }
+
   return (
     <div className="telemetry-chart-container">
+      {/* =========================================================
+          INTERACTIVE TIME-OF-DAY SCRUBBER (6:00 AM - 6:00 PM)
+          ========================================================= */}
+      <div className="timeline-scrubber-box">
+        <div className="scrubber-top-row">
+          <div className="scrubber-label-group">
+            <span className="scrubber-icon">🕒</span>
+            <div className="scrubber-title-wrap">
+              <strong>Time-of-Day Interactive Scrubber (6:00 AM – 6:00 PM)</strong>
+              <small>Drag slider to simulate sun elevation, instantaneous generation, and AI feature vector attributions</small>
+            </div>
+          </div>
+
+          <div className="scrubber-controls">
+            <button 
+              className={`scrubber-play-btn ${isPlaying ? 'playing' : ''}`}
+              onClick={() => setIsPlaying(!isPlaying)}
+              title={isPlaying ? 'Pause auto-scrub animation' : 'Play daylight simulation'}
+            >
+              {isPlaying ? '⏸ Pause' : '▶ Play Day'}
+            </button>
+            <div className="quick-hour-pills">
+              {[6, 9, 12, 15, 18].map((hr) => (
+                <button
+                  key={hr}
+                  className={`hour-pill ${selectedHour === hr ? 'active' : ''}`}
+                  onClick={() => {
+                    setIsPlaying(false)
+                    setSelectedHour(hr)
+                  }}
+                >
+                  {hr === 6 ? '🌅 6 AM' : hr === 12 ? '☀️ 12 PM' : hr === 18 ? '🌇 6 PM' : hr < 12 ? `${hr} AM` : `${hr - 12} PM`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Range Slider Track */}
+        <div className="scrubber-slider-container">
+          <input
+            type="range"
+            min="6"
+            max="18"
+            step="1"
+            value={Math.max(6, Math.min(18, selectedHour))}
+            onChange={(e) => {
+              setIsPlaying(false)
+              setSelectedHour(Number(e.target.value))
+            }}
+            className="timeline-range-slider"
+          />
+          <div className="scrubber-ticks-row">
+            <span>🌅 06:00 (Dawn)</span>
+            <span>08:00</span>
+            <span>10:00</span>
+            <span className="noon-tick">☀️ 12:00 (Solar Noon)</span>
+            <span>14:00</span>
+            <span>16:00</span>
+            <span>🌇 18:00 (Dusk)</span>
+          </div>
+        </div>
+
+        {/* Real-Time Telemetry Sync Pill for Selected Hour */}
+        {currentRecord && (
+          <div className="scrubber-live-pill">
+            <div className="live-stat">
+              <span className="stat-label">Selected Hour:</span>
+              <strong className="stat-value highlight-cyan">{formatHourLabel(selectedHour)}</strong>
+            </div>
+            <div className="live-stat">
+              <span className="stat-label">POA Irradiance:</span>
+              <strong className="stat-value">{Math.round(currentRecord.poa_global ?? currentRecord.ghi ?? 0)} W/m²</strong>
+            </div>
+            <div className="live-stat">
+              <span className="stat-label">Theoretical (Pmod):</span>
+              <strong className="stat-value text-emerald">{(currentRecord.p_modeled_kw ?? 0).toFixed(2)} kW</strong>
+            </div>
+            <div className="live-stat">
+              <span className="stat-label">Actual (Pact):</span>
+              <strong className="stat-value text-cyan">{(currentRecord.p_actual_kw ?? 0).toFixed(2)} kW</strong>
+            </div>
+            <div className="live-stat">
+              <span className="stat-label">AI Voltage Ratio:</span>
+              <strong className="stat-value" style={{ color: (currentRecord.v_actual / (currentRecord.v_modeled || 1)) < 0.8 ? '#ff4d6d' : '#34d399' }}>
+                {(currentRecord.v_actual / (currentRecord.v_modeled || 1)).toFixed(2)}
+              </strong>
+            </div>
+            <div className="live-stat">
+              <span className="stat-label">AI Current Ratio:</span>
+              <strong className="stat-value" style={{ color: (currentRecord.i_actual / (currentRecord.i_modeled || 1)) < 0.9 ? '#fbbf24' : '#34d399' }}>
+                {(currentRecord.i_actual / (currentRecord.i_modeled || 1)).toFixed(2)}
+              </strong>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Chart Header & Tab Bar */}
       <div className="chart-header">
         <div className="chart-title-wrap">

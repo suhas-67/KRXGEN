@@ -372,6 +372,41 @@ export default function App() {
     );
   }, [currentHourData, hasDiodeFault]);
 
+  // 5. Dynamic 3D Sun Elevation Angle & Atmospheric Lighting based on selectedHour (6 AM to 6 PM)
+  const sunLighting = useMemo(() => {
+    const hr = Math.max(6, Math.min(18, selectedHour));
+    const solarFraction = (hr - 6) / 12; // 0 (6 AM) -> 0.5 (12 PM Noon) -> 1.0 (6 PM)
+    const solarElevationRad = Math.sin(solarFraction * Math.PI);
+    const solarAzimuthRad = solarFraction * Math.PI;
+
+    const x = -16 * Math.cos(solarAzimuthRad); // -16 (East) -> 0 (South) -> 16 (West)
+    const y = Math.max(1.8, 16 * solarElevationRad); // 1.8 (Horizon) -> 16 (Zenith) -> 1.8
+    const z = 8 - 4 * Math.sin(solarAzimuthRad);
+
+    const isNoon = Math.abs(hr - 12) <= 2;
+    const isLowSun = hr <= 8 || hr >= 16;
+    
+    let lightColor = '#ffffff';
+    let lightIntensity = 2.8 * Math.max(0.25, solarElevationRad);
+    let ambientIntensity = 0.35 + 0.25 * solarElevationRad;
+
+    if (isLowSun) {
+      lightColor = hr < 12 ? '#fed7aa' : '#fdba74'; // warm golden dawn / dusk
+    } else if (isNoon) {
+      lightColor = '#f0f9ff'; // bright noon daylight
+    }
+
+    return {
+      position: [x, y, z],
+      color: lightColor,
+      intensity: lightIntensity,
+      ambientIntensity: ambientIntensity,
+      elevationDeg: Math.round(solarElevationRad * 75), // 0° to 75° altitude angle
+      azimuthStr: hr < 12 ? 'East (Dawn)' : hr === 12 ? 'Zenith (Solar Noon)' : 'West (Dusk)',
+      timeStr: hr === 12 ? '12:00 PM (Noon)' : hr < 12 ? `${hr}:00 AM` : `${hr - 12}:00 PM`
+    };
+  }, [selectedHour]);
+
   // 5. Download Scope-2 ESG Verifiable Audit Report
   const handleDownloadEsgAudit = useCallback(() => {
     const data = JSON.stringify({
@@ -500,7 +535,7 @@ export default function App() {
               <div className="digital-twin-panel">
                 <div className="twin-badge-overlay">
                   <span className="twin-tag">3D DIGITAL TWIN • 15 PANELS (3 STRINGS)</span>
-                  <span className="twin-hint">🖱️ Left click: Rotate • Right click: Pan • Scroll: Zoom</span>
+                  <span className="twin-hint">☀️ Sun: {sunLighting.elevationDeg}° Alt • {sunLighting.azimuthStr}</span>
                 </div>
 
                 <div className="canvas-wrapper">
@@ -512,12 +547,13 @@ export default function App() {
                     <Environment preset="sunset" />
                     <directionalLight
                       castShadow
-                      position={[5, 10, 5]}
-                      intensity={2.8}
+                      position={sunLighting.position}
+                      intensity={sunLighting.intensity}
+                      color={sunLighting.color}
                       shadow-mapSize-width={1024}
                       shadow-mapSize-height={1024}
                     />
-                    <ambientLight intensity={0.4} />
+                    <ambientLight intensity={sunLighting.ambientIntensity} />
 
                     {/* 15 Solar Panels with Live Soiling & Fault Highlights */}
                     {panelPositions.map((position, index) => {
