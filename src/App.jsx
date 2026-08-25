@@ -372,6 +372,44 @@ export default function App() {
     );
   }, [currentHourData, hasDiodeFault]);
 
+  // 5. Download Scope-2 ESG Verifiable Audit Report
+  const handleDownloadEsgAudit = useCallback(() => {
+    const data = JSON.stringify({
+      auditStandard: "GHG Protocol Scope 2 Guidance (Market & Location-based)",
+      reportingEntity: "HelioSense Enterprise PV Surveillance",
+      facilityId: "SOLAR-ARRAY-001 (Tamil Nadu, India)",
+      timestamp: new Date().toISOString(),
+      gridEmissionFactor: "0.72 kg CO2e / kWh (CEA India v19 Standard)",
+      energyMetrics: {
+        arrayCapacityKw: 5.0,
+        currentHour: currentHourData?.hour ?? 12,
+        dailyEnergyLossKwh: economicDispatch?.dailyEnergyLossKwh || 0,
+        weeklyEnergyLossKwh: (economicDispatch?.dailyEnergyLossKwh || 0) * 7,
+        soilingIndex: soilingIndex,
+        soilingLossPercentage: soilingLossPct,
+      },
+      carbonDebtMetrics: {
+        dailyAvoidableCarbonDebtKg: economicDispatch?.dailyCarbonDebtKg || 0,
+        weeklyProjectedCarbonDebtKg: (economicDispatch?.dailyCarbonDebtKg || 0) * 7,
+        annualizedCarbonImpactTonnes: ((economicDispatch?.dailyCarbonDebtKg || 0) * 365 / 1000).toFixed(2),
+        remediationStatus: economicDispatch?.decision === 'DISPATCH' ? 'REMEDIATION_REQUIRED' : 'COMPLIANT'
+      },
+      diagnosticAudit: {
+        primaryDiagnosis: diagnosis?.status || 'HEALTHY',
+        confidenceScore: `${diagnosis?.confidence || 100}%`,
+        featureAttributions: diagnosis?.featureAttributions || 'Nominal irradiance tracking',
+      }
+    }, null, 2);
+
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Scope2-ESG-Carbon-Audit-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [economicDispatch, soilingIndex, soilingLossPct, currentHourData, diagnosis]);
+
   return (
     <div className="heliosense-app">
       {/* Top HUD Header */}
@@ -381,7 +419,7 @@ export default function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenSdg={() => setIsSdgOpen(true)}
-        economicDispatch={economicDispatch}
+        onDownloadEsgAudit={handleDownloadEsgAudit}
         useLiveWeather={useLiveWeather}
         setUseLiveWeather={setUseLiveWeather}
       />
@@ -452,6 +490,7 @@ export default function App() {
             soilingLossPct={soilingLossPct}
             currentHourData={currentHourData}
             onOpenDispatchModal={() => setIsWorkOrderOpen(true)}
+            onDownloadEsgAudit={handleDownloadEsgAudit}
           />
 
           {/* Dynamic View Mode Content */}

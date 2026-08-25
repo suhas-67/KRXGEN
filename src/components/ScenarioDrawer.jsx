@@ -89,14 +89,14 @@ export default function ScenarioDrawer({
           {/* Primary Action: Wash Panels */}
           <div className="drawer-section">
             <button 
-              className={`wash-panels-btn ${isCleaning ? 'cleaning' : ''} ${isDispatchAlert ? 'dispatch-highlight-blink' : ''}`} 
+              className={`wash-panels-btn ${isCleaning ? 'cleaning' : ''}`} 
               onClick={onWashPanels}
               disabled={isCleaning || soilingLossPct === 0}
             >
-              <span className="wash-btn-icon">{isCleaning ? '⏳' : isDispatchAlert ? '🚨' : '🧼'}</span>
+              <span className="wash-btn-icon">{isCleaning ? '⏳' : '🧼'}</span>
               <div>
-                <strong>{isCleaning ? 'Washing Panels...' : isDispatchAlert ? 'Wash Required (Loss > Cost)' : 'Wash Panels (Simulate Cleaning)'}</strong>
-                <small>{isCleaning ? 'Applying high-pressure wash' : isDispatchAlert ? `Recover +₹${Math.max(0, economicDispatch?.weeklyNetProfit || 0).toFixed(0)}/wk Net ROI` : 'Resets SI to 1.0 & restores full generation'}</small>
+                <strong>{isCleaning ? 'Washing Panels...' : 'Wash Panels (Simulate Cleaning)'}</strong>
+                <small>{isCleaning ? 'Applying high-pressure wash' : 'Resets SI to 1.0 & restores full generation'}</small>
               </div>
             </button>
           </div>

@@ -7,15 +7,44 @@ export default function KpiMetrics({
   soilingLossPct,
   currentHourData,
   onOpenDispatchModal,
+  onDownloadEsgAudit,
 }) {
   // Format SI color
   let siColorClass = 'emerald'
   if (soilingIndex < 0.80) siColorClass = 'red'
   else if (soilingIndex < 0.90) siColorClass = 'amber'
 
-  const actualPower = currentHourData?.p_actual_kw ?? 0
-  const modeledPower = currentHourData?.p_modeled_kw ?? 0
-  const generationEfficiency = modeledPower > 0.05 ? Math.min(100, Math.round((actualPower / modeledPower) * 100)) : 100
+  const isDispatchOrder = economicDispatch?.decision === 'DISPATCH'
+  const isRainSuppressed = economicDispatch?.decision === 'SUPPRESS_RAIN' || economicDispatch?.isRainComing
+
+  // Array activity status check
+  const isArrayIdle = (currentHourData?.p_modeled_kw ?? 0) < 0.05 || 
+                      (currentHourData?.poa_global ?? 750) < 20 || 
+                      diagnosis?.status === 'IDLE_NIGHT' || 
+                      diagnosis?.severity === 'neutral'
+
+  // Card 3 PIML badge and styling logic
+  let pimlCardGlow = ''
+  let pimlBadgeClass = 'neutral'
+  let pimlBadgeText = 'STANDBY'
+
+  if (isArrayIdle) {
+    pimlCardGlow = ''
+    pimlBadgeClass = 'neutral'
+    pimlBadgeText = 'STANDBY (IDLE)'
+  } else if (diagnosis?.severity === 'critical') {
+    pimlCardGlow = 'red-glow'
+    pimlBadgeClass = 'red'
+    pimlBadgeText = typeof diagnosis?.confidence === 'number' ? `PIML AI: ${diagnosis.confidence.toFixed(1)}%` : 'CRITICAL FAULT'
+  } else if (diagnosis?.severity === 'warning') {
+    pimlCardGlow = 'amber-glow'
+    pimlBadgeClass = 'amber'
+    pimlBadgeText = typeof diagnosis?.confidence === 'number' ? `PIML AI: ${diagnosis.confidence.toFixed(1)}%` : 'ANOMALY DETECTED'
+  } else {
+    pimlCardGlow = 'emerald-glow'
+    pimlBadgeClass = 'emerald'
+    pimlBadgeText = typeof diagnosis?.confidence === 'number' ? `PIML AI: ${diagnosis.confidence.toFixed(1)}%` : 'OPTIMAL YIELD'
+  }
 
   return (
     <section className="kpi-grid">
@@ -39,7 +68,7 @@ export default function KpiMetrics({
         </div>
       </div>
 
-      {/* Card 2: Energy & Revenue Loss */}
+      {/* Card 2: Energy & Revenue Loss + Scope-2 ESG Ledger */}
       <div className="kpi-card amber-glow">
         <div className="kpi-top">
           <span className="kpi-label">YIELD LOSS & REVENUE DRAIN</span>
@@ -57,51 +86,32 @@ export default function KpiMetrics({
           </span>
           <span className="kpi-footnote">₹{(economicDispatch?.weeklyRevenueLost || 0).toFixed(1)}/week loss</span>
         </div>
-        {/* Scope-2 Real-Time Carbon Ledger & Verifiable ESG Audit Trail */}
-        <div className="esg-ledger-row">
+        {/* Scope-2 Real-Time Carbon Ledger with clean breathing room */}
+        <div className="esg-ledger-container">
           <div className="esg-badge">
             <span className="esg-icon">🍃</span>
             <span>Avoidable Carbon Deficit: <strong>{(economicDispatch?.dailyCarbonDebtKg || 0).toFixed(1)} kg CO₂e/day</strong></span>
           </div>
-          <button 
-            className="esg-download-btn"
-            onClick={() => {
-              const data = JSON.stringify({
-                asset: "HelioSense Test Array",
-                date: new Date().toISOString(),
-                dailyCarbonDebtKg: economicDispatch?.dailyCarbonDebtKg || 0,
-                weeklyProjectedDebtKg: (economicDispatch?.dailyCarbonDebtKg || 0) * 7,
-                emissionFactor: 0.72,
-                status: "UNVERIFIED_LOSS"
-              }, null, 2);
-              const blob = new Blob([data], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "Scope2-ESG-Audit-Report.json";
-              a.click();
-            }}
-          >
-            📥 Download ESG Audit
-          </button>
         </div>
       </div>
 
       {/* Card 3: PIML Electrical Diagnostic Status */}
-      <div className={`kpi-card ${diagnosis?.severity === 'critical' ? 'red-glow' : diagnosis?.severity === 'warning' ? 'amber-glow' : 'emerald-glow'}`}>
+      <div className={`kpi-card ${pimlCardGlow}`}>
         <div className="kpi-top">
           <span className="kpi-label">PIML ENSEMBLE CLASSIFIER</span>
-          <span className={`kpi-badge ${diagnosis?.severity === 'critical' ? 'red' : ((diagnosis?.confidence || 0) >= 90 ? 'emerald' : 'amber')}`}>
-            {typeof diagnosis?.confidence === 'number' ? `PIML AI: ${diagnosis.confidence.toFixed(1)}%` : (diagnosis?.badge || 'HEALTHY')}
+          <span className={`kpi-badge ${pimlBadgeClass}`}>
+            {pimlBadgeText}
           </span>
         </div>
         <div className="kpi-diagnosis-title">
-          {diagnosis?.title || 'Nominal Operations'}
+          {isArrayIdle ? 'Array Inactive (Night / Low Irradiance)' : (diagnosis?.title || 'Nominal Operations')}
         </div>
         <div className="kpi-diagnosis-message">
-          {diagnosis?.message || 'Array operating nominally.'}
+          {isArrayIdle 
+            ? 'Solar irradiance below active MPPT threshold. Systems in nominal standby.' 
+            : (diagnosis?.message || 'Array electrical parameters match Sandia & 1-diode physics.')}
         </div>
-        {diagnosis?.featureAttributions && (
+        {!isArrayIdle && diagnosis?.featureAttributions && (
           <div className="kpi-sub-row" style={{ marginTop: '4px' }}>
             <span className="kpi-footnote" style={{ color: 'var(--text-muted)', fontSize: '9.5px', fontFamily: 'var(--font-mono)' }}>
               🎯 {diagnosis.featureAttributions}
@@ -110,35 +120,35 @@ export default function KpiMetrics({
         )}
       </div>
 
-      {/* Card 4: Opportunity-Aware Economic Dispatch */}
-      <div className={`kpi-card ${economicDispatch.decision === 'DISPATCH' ? 'dispatch-blinking-card red-glow' : economicDispatch.decisionClass === 'warning' ? 'amber-glow' : economicDispatch.decisionClass === 'info' ? 'blue-glow' : 'emerald-glow'}`}>
+      {/* Card 4: Dedicated Field Dispatch & Work Order */}
+      <div className={`kpi-card ${isDispatchOrder ? 'dispatch-blinking-card red-glow' : isRainSuppressed ? 'blue-glow' : 'emerald-glow'}`}>
         <div className="kpi-top">
-          <span className="kpi-label">ECONOMIC DISPATCH (72H RAIN AWARE)</span>
-          <span className={`kpi-badge ${economicDispatch.decision === 'DISPATCH' ? 'red blink-badge' : economicDispatch.decisionClass}`}>
-            {economicDispatch.decisionBadge}
+          <span className="kpi-label">FIELD WORK-ORDER DISPATCH</span>
+          <span className={`kpi-badge ${isDispatchOrder ? 'red blink-badge' : isRainSuppressed ? 'blue' : 'neutral'}`}>
+            {isDispatchOrder ? 'ACTION REQUIRED' : isRainSuppressed ? 'RAIN OVERRIDE' : 'STANDBY'}
           </span>
         </div>
         <div className="kpi-dispatch-title">
-          {economicDispatch.isRainComing 
-            ? '🌧️ Rain Forecast Suppressing Wash' 
-            : economicDispatch.decision === 'DISPATCH' 
-            ? `🚨 DISPATCH ORDER: Net ROI +₹${Math.max(0, economicDispatch.weeklyNetProfit).toFixed(2)}/wk`
-            : economicDispatch.weeklyNetProfit > 0 
-            ? `💰 Wash ROI: +₹${economicDispatch.weeklyNetProfit.toFixed(2)}/wk` 
-            : '✅ Generation Within Cost Margin'}
+          {isRainSuppressed 
+            ? '🌧️ Rain Forecast Suppresses Dispatch' 
+            : isDispatchOrder 
+            ? `🚨 Wash Dispatch Recommended (+₹${Math.max(0, economicDispatch.weeklyNetProfit).toFixed(0)}/wk)`
+            : '✅ System Operating Within Threshold'}
         </div>
         <div className="kpi-dispatch-explanation">
-          {economicDispatch.explanation}
+          {isRainSuppressed
+            ? `Precipitation (${Math.round(economicDispatch?.maxRainProb || 0)}% chance) forecast within 72h. Wash paused to conserve water.`
+            : isDispatchOrder
+            ? `Weekly revenue loss (₹${(economicDispatch?.weeklyRevenueLost || 0).toFixed(0)}) exceeds cleaning expense. Technician ready.`
+            : 'No maintenance action needed. Real-time telemetry monitoring active.'}
         </div>
-        {/* Automated WhatsApp / Telegram Maintenance Work-Order Dispatch */}
-        {economicDispatch.decision === 'DISPATCH' && (
-          <button 
-            className="dispatch-work-order-btn"
-            onClick={onOpenDispatchModal}
-          >
-            📱 Dispatch Work Order
-          </button>
-        )}
+        {/* Dedicated Telegram Field Dispatch Button */}
+        <button 
+          className={`dispatch-work-order-btn ${isDispatchOrder ? 'active-dispatch-btn' : 'standby-dispatch-btn'}`}
+          onClick={onOpenDispatchModal}
+        >
+          📱 {isDispatchOrder ? 'Dispatch Work Order to Field Tech' : 'Preview Field Dispatch Ticket'}
+        </button>
       </div>
     </section>
   )

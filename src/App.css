@@ -202,6 +202,28 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
+.esg-header-btn {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.esg-header-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #34d399;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
 .sdg-btn {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
@@ -602,6 +624,12 @@
   background: rgba(0, 210, 255, 0.15);
   color: #38bdf8;
   border: 1px solid rgba(0, 210, 255, 0.4);
+}
+
+.kpi-badge.neutral, .kpi-badge.slate, .kpi-badge.idle {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
 .kpi-value-row {
@@ -1779,61 +1807,73 @@
 }
 
 /* =========================================================
-   ESG CARBON LEDGER BADGE
+   ESG CARBON LEDGER BADGE (CARD 2 CLEAN FULL-WIDTH)
    ========================================================= */
-.esg-ledger-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
-  padding-top: 12px;
+.esg-ledger-container {
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  width: 100%;
 }
 
-.esg-badge {
+.esg-ledger-container .esg-badge {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(16, 185, 129, 0.08);
   border: 1px solid rgba(16, 185, 129, 0.2);
   color: #34d399;
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 0.75rem;
-}
-
-.esg-download-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.esg-download-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
+  font-size: 0.72rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* =========================================================
-   DISPATCH WORK ORDER BUTTON
+   DEDICATED DISPATCH WORK ORDER BUTTON (CARD 4)
    ========================================================= */
 .dispatch-work-order-btn {
-  margin-top: 12px;
+  margin-top: 10px;
   width: 100%;
-  background: #0f172a;
-  border: 1px solid #3b82f6;
-  color: #60a5fa;
-  padding: 8px;
+  padding: 8px 12px;
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
-.dispatch-work-order-btn:hover {
-  background: #3b82f6;
-  color: white;
+
+.dispatch-work-order-btn.active-dispatch-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: 1px solid #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+  animation: pulse-blue-btn 2s infinite;
+}
+
+.dispatch-work-order-btn.active-dispatch-btn:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  transform: translateY(-1px);
+}
+
+.dispatch-work-order-btn.standby-dispatch-btn {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+.dispatch-work-order-btn.standby-dispatch-btn:hover {
+  background: rgba(30, 58, 95, 0.5);
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+@keyframes pulse-blue-btn {
+  0%, 100% { box-shadow: 0 0 8px rgba(37, 99, 235, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(59, 130, 246, 0.6); }
 }
