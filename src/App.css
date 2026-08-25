@@ -2071,3 +2071,107 @@
   color: #00c8ff;
   font-weight: 700;
 }
+
+/* =========================================================
+   AUTONOMOUS MULTI-WEEK DUST ACCRETION TIMELINE STYLES
+   ========================================================= */
+.scrubber-fast-btn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scrubber-fast-btn:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+}
+
+.scrubber-fast-btn.fast-active {
+  background: #f59e0b;
+  color: #0f172a;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  animation: pulse-amber-btn 1.5s infinite;
+}
+
+@keyframes pulse-amber-btn {
+  0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 14px rgba(245, 158, 11, 0.7); }
+}
+
+.multiweek-accretion-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(8, 15, 26, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.multiweek-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.75rem;
+}
+
+.multiweek-badge {
+  color: #f1f5f9;
+}
+
+.dust-accrued-badge {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.multiweek-quick-jump {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.week-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.week-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.week-chip.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+.week-chip.dispatch-due {
+  border-color: rgba(255, 42, 85, 0.3);
+  color: #fda4af;
+}
+
+.week-chip.dispatch-due.active {
+  background: rgba(255, 42, 85, 0.2);
+  border-color: #ff2a55;
+  color: #ff4d6d;
+  box-shadow: 0 0 8px rgba(255, 42, 85, 0.4);
+}

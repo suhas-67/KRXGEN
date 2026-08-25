@@ -1,6 +1,8 @@
 import React from 'react'
 
 export default function ScenarioDrawer({
+  simulationDay = 14,
+  setSimulationDay,
   soilingLossPct,
   setSoilingLossPct,
   hasDiodeFault,
@@ -57,15 +59,15 @@ export default function ScenarioDrawer({
               >
                 <span className="preset-icon">🌿</span>
                 <strong>Clean Baseline</strong>
-                <small>SI = 0.99 (Healthy)</small>
+                <small>Day 1: SI = 1.00 (Clean)</small>
               </button>
               <button
                 className={`preset-card ${activePreset === 'soiling' ? 'active' : ''}`}
                 onClick={() => onApplyPreset('soiling')}
               >
                 <span className="preset-icon">💨</span>
-                <strong>Severe Dust</strong>
-                <small>25% Soiling Loss</small>
+                <strong>3 Weeks Dust</strong>
+                <small>Day 21: 27% Soiling Loss</small>
               </button>
               <button
                 className={`preset-card ${activePreset === 'diode' ? 'active' : ''}`}
@@ -156,25 +158,26 @@ export default function ScenarioDrawer({
             )}
           </div>
 
-          {/* Soiling Slider */}
+          {/* Autonomous Multi-Week Accretion Slider */}
           <div className="drawer-section">
             <div className="slider-header">
-              <label className="section-label">SURFACE DUST ACCUMULATION</label>
-              <span className="slider-val-badge">{soilingLossPct}% Loss</span>
+              <label className="section-label">AUTONOMOUS DUST ACCRETION</label>
+              <span className="slider-val-badge">Day {simulationDay} ({soilingLossPct}% Loss)</span>
             </div>
             <input
               type="range"
-              min="0"
-              max="50"
+              min="1"
+              max="28"
               step="1"
-              value={soilingLossPct}
-              onChange={(e) => setSoilingLossPct(Number(e.target.value))}
+              value={simulationDay}
+              onChange={(e) => setSimulationDay(Number(e.target.value))}
               className="range-slider"
             />
             <div className="slider-ticks">
-              <span>0% (Clean)</span>
-              <span>25% (Dusty)</span>
-              <span>50% (Heavy)</span>
+              <span>Day 1 (Clean)</span>
+              <span>Day 14 (Wk 2)</span>
+              <span>Day 21 (Wk 3)</span>
+              <span>Day 28 (Wk 4)</span>
             </div>
           </div>
 

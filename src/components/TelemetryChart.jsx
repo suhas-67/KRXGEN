@@ -1,25 +1,61 @@
 import React, { useState, useMemo, useEffect } from 'react'
 
-export default function TelemetryChart({ simRecords, selectedHour, setSelectedHour, diagnosis, soilingIndex, soilingForecast }) {
+export default function TelemetryChart({
+  simRecords,
+  selectedHour,
+  setSelectedHour,
+  simulationDay = 14,
+  setSimulationDay,
+  diagnosis,
+  soilingIndex,
+  soilingLossPct = 18,
+  soilingForecast,
+}) {
   const [metricTab, setMetricTab] = useState('power') // 'power' | 'voltage' | 'current' | 'weather'
   const [hoveredIndex, setHoveredIndex] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isFastAccreting, setIsFastAccreting] = useState(false)
 
-  // Auto-play timeline animation loop (6 AM to 6 PM)
+  // Auto-play timeline animation loop (6 AM to 6 PM with continuous multi-week dust accretion)
   useEffect(() => {
     let timer;
     if (isPlaying) {
       timer = setInterval(() => {
-        setSelectedHour((prev) => {
-          if (prev >= 18) return 6;
-          return prev + 1;
+        setSelectedHour((prevHour) => {
+          if (prevHour >= 18) {
+            // At dusk, advance the day and increment natural dust accumulation!
+            if (setSimulationDay) {
+              setSimulationDay((prevDay) => (prevDay >= 28 ? 1 : prevDay + 1));
+            }
+            return 6;
+          }
+          return prevHour + 1;
         });
-      }, 900);
+      }, 850);
     }
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, setSelectedHour]);
+  }, [isPlaying, setSelectedHour, setSimulationDay]);
+
+  // Fast-Forward Multi-Week Dust Accretion Timelapse (Day 1 -> Day 21 over ~7 seconds)
+  useEffect(() => {
+    let fastTimer;
+    if (isFastAccreting) {
+      fastTimer = setInterval(() => {
+        setSimulationDay((prevDay) => {
+          if (prevDay >= 28) {
+            setIsFastAccreting(false);
+            return 28;
+          }
+          return prevDay + 1;
+        });
+      }, 350);
+    }
+    return () => {
+      if (fastTimer) clearInterval(fastTimer);
+    };
+  }, [isFastAccreting, setSimulationDay]);
 
   // Current selected hour record
   const currentRecord = useMemo(() => {
@@ -51,11 +87,7 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
       if (metricTab === 'power') {
         act = r.p_actual_kw ?? 0
         mod = r.p_modeled_kw ?? 0
-        
-        // PIML Virtual Sensor: AI predicts the TRUE CLEAN output by correcting 
-        // the naive physics model's unmodeled thermal and angular (IAM) losses.
-        piml = r.p_piml_kw ?? (mod * 0.98); // Fallback to 2% drop if missing
-        
+        piml = r.p_piml_kw ?? (mod * 0.98);
         unit = 'kW'
         labelActual = 'Actual Measured Output (Pac)'
         labelModeled = 'Naive Physics Baseline (Theoretical)'
@@ -105,7 +137,6 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
       }
     })
 
-    // Add 10% ceiling
     maxVal = Math.ceil(maxVal * 1.15 * 10) / 10
     if (maxVal === 0) maxVal = 1
 
@@ -176,47 +207,49 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
     return `${hr - 12}:00 PM`
   }
 
+  const currentWeek = Math.min(4, Math.max(1, Math.ceil(simulationDay / 7)))
+
   return (
     <div className="telemetry-chart-container">
       {/* =========================================================
-          INTERACTIVE TIME-OF-DAY SCRUBBER (6:00 AM - 6:00 PM)
+          INTERACTIVE TIME-OF-DAY & MULTI-WEEK DUST ACCRETION SCRUBBER
           ========================================================= */}
       <div className="timeline-scrubber-box">
+        {/* Top Header: Time of Day Scrubber */}
         <div className="scrubber-top-row">
           <div className="scrubber-label-group">
             <span className="scrubber-icon">🕒</span>
             <div className="scrubber-title-wrap">
               <strong>Time-of-Day Interactive Scrubber (6:00 AM – 6:00 PM)</strong>
-              <small>Drag slider to simulate sun elevation, instantaneous generation, and AI feature vector attributions</small>
+              <small>Simulates solar elevation, instantaneous irradiance, and automated multi-week dust accumulation</small>
             </div>
           </div>
 
           <div className="scrubber-controls">
             <button 
               className={`scrubber-play-btn ${isPlaying ? 'playing' : ''}`}
-              onClick={() => setIsPlaying(!isPlaying)}
-              title={isPlaying ? 'Pause auto-scrub animation' : 'Play daylight simulation'}
+              onClick={() => {
+                setIsFastAccreting(false);
+                setIsPlaying(!isPlaying);
+              }}
+              title={isPlaying ? 'Pause simulation' : 'Play 24h daylight cycle (accumulates dust over days)'}
             >
               {isPlaying ? '⏸ Pause' : '▶ Play Day'}
             </button>
-            <div className="quick-hour-pills">
-              {[6, 9, 12, 15, 18].map((hr) => (
-                <button
-                  key={hr}
-                  className={`hour-pill ${selectedHour === hr ? 'active' : ''}`}
-                  onClick={() => {
-                    setIsPlaying(false)
-                    setSelectedHour(hr)
-                  }}
-                >
-                  {hr === 6 ? '🌅 6 AM' : hr === 12 ? '☀️ 12 PM' : hr === 18 ? '🌇 6 PM' : hr < 12 ? `${hr} AM` : `${hr - 12} PM`}
-                </button>
-              ))}
-            </div>
+            <button 
+              className={`scrubber-fast-btn ${isFastAccreting ? 'fast-active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(!isFastAccreting);
+              }}
+              title="Fast-forward 3-4 weeks to watch dust accumulate automatically"
+            >
+              {isFastAccreting ? '⏳ Accreting...' : '⏩ Accrete 3 Weeks'}
+            </button>
           </div>
         </div>
 
-        {/* Range Slider Track */}
+        {/* 24-Hour Daylight Range Slider Track */}
         <div className="scrubber-slider-container">
           <input
             type="range"
@@ -225,8 +258,8 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             step="1"
             value={Math.max(6, Math.min(18, selectedHour))}
             onChange={(e) => {
-              setIsPlaying(false)
-              setSelectedHour(Number(e.target.value))
+              setIsPlaying(false);
+              setSelectedHour(Number(e.target.value));
             }}
             className="timeline-range-slider"
           />
@@ -238,6 +271,71 @@ export default function TelemetryChart({ simRecords, selectedHour, setSelectedHo
             <span>14:00</span>
             <span>16:00</span>
             <span>🌇 18:00 (Dusk)</span>
+          </div>
+        </div>
+
+        {/* Automated Multi-Week Dust Accretion Calendar Bar */}
+        <div className="multiweek-accretion-row">
+          <div className="multiweek-info">
+            <span className="multiweek-badge">
+              🗓️ <strong>Day {simulationDay}</strong> of 28 (Week {currentWeek})
+            </span>
+            <span className="dust-accrued-badge" style={{ color: soilingLossPct > 20 ? '#ff4d6d' : soilingLossPct > 10 ? '#fbbf24' : '#34d399' }}>
+              💨 Dust Accretion: <strong>{soilingLossPct}% Loss</strong> (SI: {(soilingIndex ?? 1.0).toFixed(2)})
+            </span>
+          </div>
+
+          <div className="multiweek-quick-jump">
+            <button 
+              className={`week-chip ${simulationDay === 1 ? 'active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(false);
+                setSimulationDay(1);
+              }}
+            >
+              🌿 Day 1 (Clean)
+            </button>
+            <button 
+              className={`week-chip ${simulationDay === 7 ? 'active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(false);
+                setSimulationDay(7);
+              }}
+            >
+              🌤️ Wk 1 (8%)
+            </button>
+            <button 
+              className={`week-chip ${simulationDay === 14 ? 'active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(false);
+                setSimulationDay(14);
+              }}
+            >
+              💨 Wk 2 (18%)
+            </button>
+            <button 
+              className={`week-chip dispatch-due ${simulationDay === 21 ? 'active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(false);
+                setSimulationDay(21);
+              }}
+            >
+              🚨 Wk 3 (27% Wash Due)
+            </button>
+            <button 
+              className={`week-chip ${simulationDay === 28 ? 'active' : ''}`}
+              onClick={() => {
+                setIsPlaying(false);
+                setIsFastAccreting(false);
+                setSimulationDay(28);
+              }}
+            >
+              🌋 Wk 4 (37%)
+            </button>
           </div>
         </div>
 

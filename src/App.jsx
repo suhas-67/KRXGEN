@@ -25,11 +25,26 @@ import WorkOrderModal from './components/WorkOrderModal'
 
 import './App.css'
 
+/* =========================================================
+   NATURAL MULTI-WEEK PARTICULATE ACCRETION MODEL
+   ========================================================= */
+export function calculateDustLossFromDays(day) {
+  if (day <= 1) return 0;
+  // Particulate deposition accretion rate (~1.35% / day):
+  // Day 1: 0% (Pristine clean)
+  // Day 7 (Week 1): ~8%
+  // Day 14 (Week 2): ~18%
+  // Day 21 (Week 3): ~27% (Exceeds cleaning cost threshold -> Wash order triggered)
+  // Day 28 (Week 4): ~37%
+  return Math.min(48, Math.round((day - 1) * 1.35));
+}
+
 export default function App() {
   /* =====================================================
      SIMULATION STATE & CONTROLS
      ===================================================== */
-  const [soilingLossPct, setSoilingLossPct] = useState(20)
+  const [simulationDay, setSimulationDay] = useState(14) // Day 1 to 28 (Multi-week timeline)
+  const [soilingLossPct, setSoilingLossPct] = useState(18) // Automatically computed from simulationDay
   const [hasDiodeFault, setHasDiodeFault] = useState(false)
   const [hasRainEvent, setHasRainEvent] = useState(false)
   const [tariffRate, setTariffRate] = useState(7.5)
@@ -104,6 +119,7 @@ export default function App() {
                 if (text === 'yes' || text.includes('yes')) {
                   setIsWaitingForTechReply(false);
                   setIsCleaning(true);
+                  setSimulationDay(1);
                   setSoilingLossPct(0);
                   setHasDiodeFault(false);
                   setActivePreset('clean');
@@ -302,28 +318,38 @@ export default function App() {
   }, [currentHourData, hasDiodeFault, soilingIndex]);
 
   /* =====================================================
+     SIMULATION DAY & DUST ACCRETION HANDLER
+     ===================================================== */
+  const handleSetSimulationDay = useCallback((day) => {
+    const clampedDay = Math.max(1, Math.min(28, day));
+    setSimulationDay(clampedDay);
+    const computedLoss = calculateDustLossFromDays(clampedDay);
+    setSoilingLossPct(computedLoss);
+  }, []);
+
+  /* =====================================================
      PRESET APPLIERS
      ===================================================== */
   const handleApplyPreset = useCallback((preset) => {
     setActivePreset(preset)
     if (preset === 'clean') {
-      setSoilingLossPct(0)
+      handleSetSimulationDay(1)
       setHasDiodeFault(false)
       setHasRainEvent(false)
     } else if (preset === 'soiling') {
-      setSoilingLossPct(25)
+      handleSetSimulationDay(21) // 3 weeks accumulated dust
       setHasDiodeFault(false)
       setHasRainEvent(false)
     } else if (preset === 'diode') {
-      setSoilingLossPct(5)
+      handleSetSimulationDay(4)
       setHasDiodeFault(true)
       setHasRainEvent(false)
     } else if (preset === 'rain') {
-      setSoilingLossPct(20)
+      handleSetSimulationDay(16)
       setHasDiodeFault(false)
       setHasRainEvent(true)
     }
-  }, [])
+  }, [handleSetSimulationDay])
 
   /* =====================================================
      SIMULATE WASH PANELS ACTION
@@ -349,10 +375,11 @@ export default function App() {
       if (progress < 1) {
         requestAnimationFrame(animateCleaning);
       } else {
+        setSimulationDay(1);
         setSoilingLossPct(0);
         setActivePreset('clean');
         setIsCleaning(false);
-        setWashToast(`✨ Panels Washed! Soiling Index restored to 1.00 (Recovering ~₹${savedAmount}/wk)`);
+        setWashToast(`✨ Panels Washed! Array restored to Day 1 Clean Baseline (SI = 1.00, Recovering ~₹${savedAmount}/wk)`);
         setTimeout(() => setWashToast(null), 5000);
       }
     };
@@ -463,6 +490,8 @@ export default function App() {
       <div className="main-layout">
         {/* Left/Collapsible Live Scenario Toolbar */}
         <ScenarioDrawer
+          simulationDay={simulationDay}
+          setSimulationDay={handleSetSimulationDay}
           soilingLossPct={soilingLossPct}
           setSoilingLossPct={(val) => {
             setSoilingLossPct(val)
@@ -612,8 +641,11 @@ export default function App() {
                   simRecords={simRecords}
                   selectedHour={selectedHour}
                   setSelectedHour={setSelectedHour}
+                  simulationDay={simulationDay}
+                  setSimulationDay={handleSetSimulationDay}
                   diagnosis={diagnosis}
                   soilingIndex={soilingIndex}
+                  soilingLossPct={soilingLossPct}
                   soilingForecast={soilingForecast}
                 />
                 <StringHeatmap
